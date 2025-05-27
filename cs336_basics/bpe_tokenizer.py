@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, BinaryIO
 from utils import find_chunk_boundaries
 from collections import defaultdict, Counter
 import regex as re
@@ -25,14 +25,13 @@ class BPETokenizer:
                 f.seek(start)
                 chunk = f.read(end - start).decode("utf-8", errors="ignore")
                 token_counts.update(Counter([re_match.group() for re_match in re.finditer(self.PAT, chunk)]))
-        return token_counts
+        return token_counts    
     
-    def pretokenize(self, input_path: str) -> Dict[str, int]:
+    def pretokenize_binary(self, file: BinaryIO):
         token_counts = defaultdict(int)
-        with open(input_path, 'rb') as f:
-            chunk = f.read().decode("utf-8", errors='ignore')
-            chunks = re.split(r'<|endoftext|>', chunk)
-            for chunk in chunks:
+        chunk = file.read().decode('utf-8', errors='ignore')
+        chunks = re.split(r'<|endoftext|>', chunk)
+        for chunk in chunks:
                 tokens = [re_match.group() for re_match in re.finditer(self.PAT, chunk)]
                 counts = Counter(tokens)
                 token_counts.update(counts)
@@ -42,5 +41,6 @@ if __name__ == '__main__':
     BPE = BPETokenizer(30, [r'<|endoftext|>'])
     DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
     DATA_PATH = os.path.abspath(DATA_PATH)
-    token_counts = BPE.pretokenize(DATA_PATH)
+    with open(DATA_PATH, 'rb') as f:
+        token_counts = BPE.pretokenize_binary(f)
     print(token_counts)
