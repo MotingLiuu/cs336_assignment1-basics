@@ -27,9 +27,6 @@ class BPETokenizer:
             with Pool(4) as p:
                 for start, end in zip(boundaries[:-1], boundaries[1:]):
                     with open(input_path, 'rb') as f:
-                        boundaries = find_chunk_boundaries(
-                            f, 1, "<|endoftext|>".encode("utf-8")
-                        )
                         f.seek(start)
                         chunk = f.read(end - start)
                         results.append(p.apply_async(self.pretokenize_binary, (chunk,)))
