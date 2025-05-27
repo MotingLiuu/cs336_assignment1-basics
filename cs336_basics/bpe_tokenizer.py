@@ -18,13 +18,13 @@ class BPETokenizer:
         pass
         
     def parallel_pretokenize(self, input_path: str) -> Dict[str, int]:
-        token_counts = defaultdict(int)
+        token_counts = Counter()
         with open(input_path, 'rb') as f:
             boundaries = find_chunk_boundaries(
-                f, 4, "<|endoftext|>".encode("utf-8")
+                f, 32, "<|endoftext|>".encode("utf-8")
             )
             results = []
-            with Pool(4) as p:
+            with Pool(8) as p:
                 for start, end in zip(boundaries[:-1], boundaries[1:]):
                     with open(input_path, 'rb') as f:
                         f.seek(start)
@@ -37,7 +37,7 @@ class BPETokenizer:
         return token_counts    
     
     def pretokenize_binary(self, file: bytes):
-        token_counts = defaultdict(int)
+        token_counts = Counter()
         chunk = file.decode('utf-8', errors='ignore')
         chunks = re.split(r'<|endoftext|>', chunk)
         for chunk in chunks:
@@ -48,11 +48,12 @@ class BPETokenizer:
                 
 if __name__ == '__main__':
     BPE = BPETokenizer(30, [r'<|endoftext|>'])
-    DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
+    DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-train.txt')
     DATA_PATH = os.path.abspath(DATA_PATH)
     start = time.time()
-    with open(DATA_PATH, 'rb') as f:
-        token_counts = BPE.pretokenize_binary(f.read())
+    token_counts = BPE.parallel_pretokenize(DATA_PATH)
     end = time.time()
-    print(token_counts)
+    for idx, (token, count) in enumerate(token_counts.most_common()):
+        if idx < 100:
+            print(token, count)
     print(f'Time cost is {end - start}')
