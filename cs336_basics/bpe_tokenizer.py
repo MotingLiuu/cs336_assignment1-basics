@@ -6,6 +6,15 @@ import regex as re
 import time
 import os
 
+'''
+Auxiliary functions
+'''
+def process_chunk(input_path: str, sta: int, end: int):
+    with open(input_path, 'rb') as f:
+        f.seek(sta)
+        chunk = f.read(end - sta)
+    return self.pretokenize_binary(chunk)
+
 class BPETokenizer:
     def __init__(self, vocab_size: int, special_tokens: Optional[List[str]] = None):
         self.vocab_size = vocab_size
@@ -18,23 +27,22 @@ class BPETokenizer:
         pass
         
     def parallel_pretokenize(self, input_path: str) -> Dict[str, int]:
+        
+        
+            
         token_counts = Counter()
         with open(input_path, 'rb') as f:
             boundaries = find_chunk_boundaries(
                 f, 32, "<|endoftext|>".encode("utf-8")
             )
-            results = []
-            with Pool(8) as p:
-                for start, end in zip(boundaries[:-1], boundaries[1:]):
-                    with open(input_path, 'rb') as f:
-                        f.seek(start)
-                        chunk = f.read(end - start)
-                        results.append(p.apply_async(self.pretokenize_binary, (chunk,)))
-                p.close()
-                p.join()
-            for r in results:
-                token_counts.update(r.get())
+        subprocess_args = [(input_path, sta, end) for sta, end in zip(boundaries[:-1], boundaries[1:])]
+        with Pool(8) as p:
+            results = p.map(process_chunk, subprocess_args)
+        for r in results:
+            token_counts.update(r)
         return token_counts    
+    
+    
     
     def pretokenize_binary(self, file: bytes):
         token_counts = Counter()
