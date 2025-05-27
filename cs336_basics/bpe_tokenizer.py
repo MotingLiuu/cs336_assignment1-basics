@@ -27,9 +27,9 @@ class BPETokenizer:
                 token_counts.update(Counter([re_match.group() for re_match in re.finditer(self.PAT, chunk)]))
         return token_counts    
     
-    def pretokenize_binary(self, file: BinaryIO):
+    def pretokenize_binary(self, file: bytes):
         token_counts = defaultdict(int)
-        chunk = file.read().decode('utf-8', errors='ignore')
+        chunk = file.decode('utf-8', errors='ignore')
         chunks = re.split(r'<|endoftext|>', chunk)
         for chunk in chunks:
                 tokens = [re_match.group() for re_match in re.finditer(self.PAT, chunk)]
@@ -42,5 +42,5 @@ if __name__ == '__main__':
     DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
     DATA_PATH = os.path.abspath(DATA_PATH)
     with open(DATA_PATH, 'rb') as f:
-        token_counts = BPE.pretokenize_binary(f)
+        token_counts = BPE.pretokenize_binary(f.read())
     print(token_counts)
