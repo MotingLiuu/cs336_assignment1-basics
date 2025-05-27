@@ -1,7 +1,9 @@
 from typing import Optional, List, Dict, BinaryIO
 from utils import find_chunk_boundaries
 from collections import defaultdict, Counter
+from multiprocessing import Pool
 import regex as re
+import time
 import os
 
 class BPETokenizer:
@@ -19,12 +21,22 @@ class BPETokenizer:
         token_counts = defaultdict(int)
         with open(input_path, 'rb') as f:
             boundaries = find_chunk_boundaries(
-                f, 1, "<|endoftext|>".encode("utf-8")
+                f, 4, "<|endoftext|>".encode("utf-8")
             )
-            for start, end in zip(boundaries[:-1], boundaries[1:]):
-                f.seek(start)
-                chunk = f.read(end - start).decode("utf-8", errors="ignore")
-                token_counts.update(Counter([re_match.group() for re_match in re.finditer(self.PAT, chunk)]))
+            results = []
+            with Pool(4) as p:
+                for start, end in zip(boundaries[:-1], boundaries[1:]):
+                    with open(input_path, 'rb') as f:
+                        boundaries = find_chunk_boundaries(
+                            f, 1, "<|endoftext|>".encode("utf-8")
+                        )
+                        f.seek(start)
+                        chunk = f.read(end - start)
+                        results.append(p.apply_async(self.pretokenize_binary, (chunk,)))
+                p.close()
+                p.join()
+            for r in results:
+                token_counts.update(r.get())
         return token_counts    
     
     def pretokenize_binary(self, file: bytes):
@@ -41,6 +53,9 @@ if __name__ == '__main__':
     BPE = BPETokenizer(30, [r'<|endoftext|>'])
     DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
     DATA_PATH = os.path.abspath(DATA_PATH)
+    start = time.time()
     with open(DATA_PATH, 'rb') as f:
         token_counts = BPE.pretokenize_binary(f.read())
+    end = time.time()
     print(token_counts)
+    print(f'Time cost is {end - start}')
