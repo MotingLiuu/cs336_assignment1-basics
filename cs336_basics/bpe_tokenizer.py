@@ -22,7 +22,9 @@ class BPETokenizer:
         pass
     
     @staticmethod
-    def parallel_pretokenize(input_path: str, pattern, special_tokens: Optional[List[str]] = [r'<endoftext>']) -> Dict[str, int]:
+    def pretokenize_parallel(input_path: str, pattern, special_tokens: Optional[List[str]] = None) -> Dict[str, int]:
+        if special_tokens is None:
+            special_tokens = [r'<|endoftext|>']
         token_counts = Counter()
         with open(input_path, 'rb') as f:
             boundaries = find_chunk_boundaries(
@@ -30,16 +32,18 @@ class BPETokenizer:
             )
         subprocess_args = [(input_path, pattern, special_tokens, sta, end) for sta, end in zip(boundaries[:-1], boundaries[1:])]
         with Pool(8) as p:
-            results = p.starmap(BPETokenizer.parallel_pretokenize_auxiliary, subprocess_args)
+            results = p.starmap(BPETokenizer._parallel_pretokenize_worker, subprocess_args)
         for r in results:
             token_counts.update(r)
         return token_counts    
     
     @staticmethod
-    def pretokenize_binary(file: bytes, pattern: str, special_tokens: Optional[List[str]] = [r'<|endoftext|>']):
+    def pretokenize_binary(file: bytes, pattern: str, special_tokens: Optional[List[str]] = None):
+        if special_tokens is None:
+            special_tokens = [r'<|endoftext|>']
         token_counts = Counter()
         chunk = file.decode('utf-8', errors='ignore')
-        chunks = re.split(re.escape('|'.join(special_tokens)), chunk)
+        chunks = re.split('|'.join(map(re.escape, special_tokens)), chunk)
         for chunk in chunks:
                 tokens = [re_match.group() for re_match in re.finditer(pattern, chunk)]
                 counts = Counter(tokens)
@@ -47,7 +51,9 @@ class BPETokenizer:
         return token_counts
     
     @staticmethod
-    def parallel_pretokenize_auxiliary(input_path: str, pattern, special_tokens: Optional[list[str]] = [r'<|endoftext|>'], sta: int = 0, end: int = 0):
+    def _parallel_pretokenize_worker(input_path: str, pattern: str, special_tokens: Optional[List[str]] = None, sta: int = 0, end: int = 0):
+        if special_tokens is None:
+            special_tokens = [r'<|endoftext|>']
         with open(input_path, 'rb') as f:
             f.seek(sta)
             chunk = f.read(end - sta)
@@ -60,7 +66,7 @@ if __name__ == '__main__':
     start = time.time()
     #with open(DATA_PATH, 'rb') as f:
     #    token_counts = BPETokenizer.pretokenize_binary(f.read(), BPE.PAT)
-    token_counts = BPETokenizer.parallel_pretokenize(DATA_PATH, BPE.PAT)
+    token_counts = BPETokenizer.pretokenize_parallel(DATA_PATH, BPE.PAT)
     end = time.time()
     for idx, (token, count) in enumerate(token_counts.most_common()):
         if idx < 100:
