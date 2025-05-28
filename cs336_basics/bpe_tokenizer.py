@@ -9,11 +9,6 @@ import os
 '''
 Auxiliary functions
 '''
-def process_chunk(input_path: str, sta: int, end: int):
-    with open(input_path, 'rb') as f:
-        f.seek(sta)
-        chunk = f.read(end - sta)
-    return self.pretokenize_binary(chunk)
 
 class BPETokenizer:
     def __init__(self, vocab_size: int, special_tokens: Optional[List[str]] = None):
@@ -27,9 +22,12 @@ class BPETokenizer:
         pass
         
     def parallel_pretokenize(self, input_path: str) -> Dict[str, int]:
+        def process_chunk(input_path: str, sta: int, end: int):
+            with open(input_path, 'rb') as f:
+                f.seek(sta)
+                chunk = f.read(end - sta)
+            return self.pretokenize_binary(chunk)
         
-        
-            
         token_counts = Counter()
         with open(input_path, 'rb') as f:
             boundaries = find_chunk_boundaries(
@@ -42,24 +40,28 @@ class BPETokenizer:
             token_counts.update(r)
         return token_counts    
     
-    
-    
-    def pretokenize_binary(self, file: bytes):
+    @staticmethod
+    def pretokenize_binary(file: bytes, pattern: str, special_tokens: Optional[List[str]] = [r'<|endoftext|>']):
         token_counts = Counter()
         chunk = file.decode('utf-8', errors='ignore')
-        chunks = re.split(r'<|endoftext|>', chunk)
+        chunks = re.split(re.escape('|'.join(special_tokens)), chunk)
         for chunk in chunks:
-                tokens = [re_match.group() for re_match in re.finditer(self.PAT, chunk)]
+                tokens = [re_match.group() for re_match in re.finditer(pattern, chunk)]
                 counts = Counter(tokens)
                 token_counts.update(counts)
         return token_counts
+    
+    @staticmethod
+    def parallel_pretokenize_auxiliary(input_path: str, pattern, special_tokens: Optional[list[str]] = [r'<|endoftext|>']):
+        pass
                 
 if __name__ == '__main__':
     BPE = BPETokenizer(30, [r'<|endoftext|>'])
-    DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-train.txt')
+    DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
     DATA_PATH = os.path.abspath(DATA_PATH)
     start = time.time()
-    token_counts = BPE.parallel_pretokenize(DATA_PATH)
+    with open(DATA_PATH, 'rb') as f:
+        token_counts = BPETokenizer.pretokenize_binary(f.read(), BPE.PAT)
     end = time.time()
     for idx, (token, count) in enumerate(token_counts.most_common()):
         if idx < 100:
