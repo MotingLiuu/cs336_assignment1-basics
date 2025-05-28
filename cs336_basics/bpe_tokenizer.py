@@ -22,7 +22,10 @@ class BPETokenizer:
         pass
     
     @staticmethod
-    def pretokenize_parallel(input_path: str, pattern, special_tokens: Optional[List[str]] = None) -> Dict[str, int]:
+    def pretokenize_parallel(input_path: str, pattern, special_tokens: Optional[List[str]] = None) -> Counter:
+        '''
+        pretokenizes a file in parallel and returns token frequencies
+        '''
         if special_tokens is None:
             special_tokens = [r'<|endoftext|>']
         token_counts = Counter()
@@ -38,7 +41,10 @@ class BPETokenizer:
         return token_counts    
     
     @staticmethod
-    def pretokenize_binary(file: bytes, pattern: str, special_tokens: Optional[List[str]] = None):
+    def pretokenize_binary(file: bytes, pattern: str, special_tokens: Optional[List[str]] = None) -> Counter:
+        '''
+        pretokenizes a file and returns token frequencies
+        '''
         if special_tokens is None:
             special_tokens = [r'<|endoftext|>']
         token_counts = Counter()
@@ -51,7 +57,10 @@ class BPETokenizer:
         return token_counts
     
     @staticmethod
-    def _parallel_pretokenize_worker(input_path: str, pattern: str, special_tokens: Optional[List[str]] = None, sta: int = 0, end: int = 0):
+    def _parallel_pretokenize_worker(input_path: str, pattern: str, special_tokens: Optional[List[str]] = None, sta: int = 0, end: int = 0) -> Counter:
+        '''
+        called by subprocesses in pretokenize_parallel, returns token frequencies
+        '''
         if special_tokens is None:
             special_tokens = [r'<|endoftext|>']
         with open(input_path, 'rb') as f:
