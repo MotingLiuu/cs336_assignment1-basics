@@ -2,6 +2,7 @@ from typing import Optional, List, Dict, BinaryIO
 from utils import find_chunk_boundaries
 from collections import defaultdict, Counter
 from multiprocessing import Pool
+from sortedcontainers import SortedDict
 import regex as re
 import time
 import os
@@ -19,7 +20,21 @@ class BPETokenizer:
         self.PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
     
     def train(self, input_path: str):
-        pass
+        token_counts = BPETokenizer.pretokenize_parallel(input_path, self.PAT, self.special_tokens)
+        bytes_counts = {key.encode('utf-8'): item for key, item in token_counts.items()}
+        # for i < vocab_size
+            # find the most frequent neighbor from sorteddict neighbors 
+            # add the most frequent neighbor (a, b) to self.merge
+            # merge the (a, b) in token_counts (function
+            # change the sorteddict of neighbors (function
+        
+    @staticmethod
+    def pair_frequency(bytes_counts: Counter) -> SortedDict:
+        pair_counter = Counter()
+        for token, counts in bytes_counts.items():
+            pairs = {(left, right) : counts for left, right in zip(token[1:], token[:-1])}
+            pair_counter.update(Counter(pairs))
+        return SortedDict(pair_counter)
     
     @staticmethod
     def pretokenize_parallel(input_path: str, pattern, special_tokens: Optional[List[str]] = None) -> Counter:
@@ -69,6 +84,7 @@ class BPETokenizer:
         return BPETokenizer.pretokenize_binary(chunk, pattern, special_tokens)
                 
 if __name__ == '__main__':
+    ''' # Here is some test for pretokenize
     BPE = BPETokenizer(30, [r'<|endoftext|>'])
     DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-train.txt')
     DATA_PATH = os.path.abspath(DATA_PATH)
@@ -81,3 +97,12 @@ if __name__ == '__main__':
         if idx < 100:
             print(token, count)
     print(f'Time cost is {end - start}')
+    '''
+    BPE = BPETokenizer(30, [r'<|endoftext|>'])
+    DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
+    DATA_PATH = os.path.abspath(DATA_PATH)
+    token_counts = BPETokenizer.pretokenize_parallel(DATA_PATH, BPE.PAT)
+    bytes_counts = {key.encode('utf-8'): item for key, item in token_counts.items()}
+    pair_sd = BPETokenizer.pair_frequency(bytes_counts)
+    print(pair_sd)
+    
