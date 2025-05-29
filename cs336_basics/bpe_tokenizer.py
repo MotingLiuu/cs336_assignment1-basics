@@ -12,8 +12,11 @@ import os
 class BPETokenizer:
     def __init__(self, vocab_size: int, special_tokens: Optional[List[str]] = None):
         self.vocab_size = vocab_size
-        self.special_tokens = special_tokens if special_tokens else None
-        self.vocab = {}
+        self.special_tokens = special_tokens if special_tokens else []
+        self.vocab = {
+            **{idx: special_token for idx, special_token in enumerate(self.special_tokens)},
+            **{num + len(self.special_tokens): bytes([num]) for num in range(256)}
+        }
         self.merges = []
         self.PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
     
@@ -29,7 +32,8 @@ class BPETokenizer:
         #       merge token_counts
         #       change the pair frequency
         #print(f'DEBUG: pair_counts: {pair_counts}\n')
-        for i in tqdm(range(self.vocab_size)):
+        vocab_size_before_train = len(self.vocab)
+        for i in tqdm(range(vocab_size_before_train, self.vocab_size)):
             most_frequent_pair = max(pair_counts, key=pair_counts.get)
             # TODO: merge in token_counts
             # TODO: change the pair frequency
@@ -79,7 +83,7 @@ class BPETokenizer:
         '''
         pretokenizes a file in parallel and returns token frequencies
         '''
-        if special_tokens is None:
+        if not special_tokens:
             special_tokens = [r'<|endoftext|>']
         token_counts = Counter()
         with open(input_path, 'rb') as f:
@@ -98,7 +102,7 @@ class BPETokenizer:
         '''
         pretokenizes a file and returns token frequencies
         '''
-        if special_tokens is None:
+        if not special_tokens:
             special_tokens = [r'<|endoftext|>']
         token_counts = Counter()
         chunk = file.decode('utf-8', errors='ignore')
@@ -114,7 +118,7 @@ class BPETokenizer:
         '''
         called by subprocesses in pretokenize_parallel, returns token frequencies
         '''
-        if special_tokens is None:
+        if not special_tokens:
             special_tokens = [r'<|endoftext|>']
         with open(input_path, 'rb') as f:
             f.seek(sta)
