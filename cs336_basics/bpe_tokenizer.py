@@ -32,15 +32,32 @@ class BPETokenizer:
         for i in range(self.vocab_size):
             most_frequent_pair = max(pair_counts, key=pair_counts.get)
             # TODO: merge in token_counts
-            
             # TODO: change the pair frequency
+            self.merges.append(most_frequent_pair)
+            pair_changed_counter = BPETokenizer._merge_pair_token_counts(token_counts, most_frequent_pair)
+            pair_counts.update(pair_changed_counter)
+            pair_counts.pop(most_frequent_pair)
+            
             
     @staticmethod
-    def _merge_pair_token_counts(token_counts: Dict[str, Tuple[List[Tuple[int]], int]], pair: Tuple[int]):
+    def _merge_pair_token_counts(token_counts: Dict[str, Tuple[List[Tuple[int]], int]], pair: Tuple[int]) -> Counter[Tuple[int]]:
+        pair_frequency_change_counter = Counter()
         for _, (token_bytes, count) in token_counts.items():
-            for idx in len(token_bytes) -1:
-                if (token_bytes[idx], token_bytes[idx + 1]): 
-                    pass
+            if len(token_bytes) > 1:
+                idx = len(token_bytes) - 2
+                while idx > -1:
+                    if token_bytes[idx] + token_bytes[idx + 1] == pair:
+                        if idx > 0:
+                            pair_frequency_change_counter[token_bytes[idx - 1] + token_bytes[idx]] -= count
+                            pair_frequency_change_counter[token_bytes[idx - 1] + token_bytes[idx] + token_bytes[idx + 1]] += count
+                        if idx < len(token_bytes) - 2:
+                            pair_frequency_change_counter[token_bytes[idx + 1] + token_bytes[idx + 2]] -= count
+                            pair_frequency_change_counter[token_bytes[idx] + token_bytes[idx + 1] + token_bytes[idx + 2]] += count
+                        token_bytes[idx] = token_bytes[idx] + token_bytes.pop(idx + 1)
+                        idx -= 1
+                    idx -= 1
+        return pair_frequency_change_counter
+                    
     
     @staticmethod
     def _pair_frequency(token_counts: Dict[str, Tuple[List[Tuple[int]], int]]) -> Counter[Tuple[int]]:
@@ -116,10 +133,18 @@ if __name__ == '__main__':
             print(token, count)
     print(f'Time cost is {end - start}')
     '''
-    BPE = BPETokenizer(30, [r'<|endoftext|>'])
-    DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
-    DATA_PATH = os.path.abspath(DATA_PATH)
-    token_counts = BPETokenizer.pretokenize_parallel(DATA_PATH, BPE.PAT)
-    token_counts = BPETokenizer._reform_tokens_counts(token_counts)
-    pair_counts = BPETokenizer._pair_frequency(token_counts)
-    print(pair_counts)
+    
+    # ===
+    # Test of BPETokenizer._merge_pair_token_counts
+    # ===
+    def test_merge_pair_token_counts():
+        test_dict = {
+            'a': ([(1,), (2,), (3,), (4,)], 2),
+            'b': ([(2,), (3,)], 3),
+            'c': ([(7,), (2,), (3,)], 1)
+        }
+        pair = (2, 3)
+        pair_changed_counter = BPETokenizer._merge_pair_token_counts(test_dict, pair)
+        print(pair_changed_counter)
+    
+    test_merge_pair_token_counts()
