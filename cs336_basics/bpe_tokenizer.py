@@ -1,15 +1,13 @@
-from typing import Optional, List, Dict, BinaryIO, Tuple
 from utils import find_chunk_boundaries
-from collections import defaultdict, Counter
+from collections import Counter
 from multiprocessing import Pool
 from tqdm import tqdm
 import regex as re
-import time
 import os
 
 
 class BPETokenizer:
-    def __init__(self, vocab_size: int, special_tokens: Optional[List[str]] = None):
+    def __init__(self, vocab_size: int, special_tokens: list[str] | None = None):
         self.vocab_size = vocab_size
         self.special_tokens = special_tokens if special_tokens else []
         self.vocab = {
@@ -46,7 +44,7 @@ class BPETokenizer:
             
             
     @staticmethod
-    def _merge_pair_token_counts(token_counts: Dict[str, Tuple[List[bytes], int]], pair: bytes) -> Counter[bytes]:
+    def _merge_pair_token_counts(token_counts: dict[str, tuple[list[bytes], int]], pair: bytes) -> Counter[bytes]:
         pair_frequency_change_counter = Counter()
         for _, (token_bytes, count) in token_counts.items():
             if len(token_bytes) > 1:
@@ -66,7 +64,7 @@ class BPETokenizer:
                     
     
     @staticmethod
-    def _pair_frequency(token_counts: Dict[str, Tuple[List[bytes], int]]) -> Counter[bytes]:
+    def _pair_frequency(token_counts: dict[str, tuple[list[bytes], int]]) -> Counter[bytes]:
         pair_counter = Counter()
         for _, (token_bytes, count) in token_counts.items():
             lefts, rights = token_bytes[:-1], token_bytes[1:]
@@ -74,11 +72,11 @@ class BPETokenizer:
         return pair_counter
     
     @staticmethod
-    def _reform_tokens_counts(token_counts: Counter[str]) -> Dict[str, Tuple[List[bytes], int]]:
+    def _reform_tokens_counts(token_counts: Counter[str]) -> dict[str, tuple[list[bytes], int]]:
         return {token: ([bytes([byte]) for byte in token.encode('utf-8')], count) for token, count in token_counts.items()}
     
     @staticmethod
-    def pretokenize_parallel(input_path: str, pattern, special_tokens: Optional[List[str]] = None) -> Counter:
+    def pretokenize_parallel(input_path: str, pattern, special_tokens: list[str] | None = None) -> Counter:
         '''
         pretokenizes a file in parallel and returns token frequencies
         '''
@@ -87,17 +85,17 @@ class BPETokenizer:
         token_counts = Counter()
         with open(input_path, 'rb') as f:
             boundaries = find_chunk_boundaries(
-                f, 128, "<|endoftext|>".encode("utf-8")
+                f, 128, b"<|endoftext|>"
             )
         subprocess_args = [(input_path, pattern, special_tokens, sta, end) for sta, end in zip(boundaries[:-1], boundaries[1:])]
         with Pool(8) as p:
-            results = p.starmap(BPETokenizer._parallel_pretokenize_worker, subprocess_args)
+            results = p.starmap(BPETokenizer._parallel_pretokenize_worker, subprocess_args) # 这里使用了硬编码，考虑将函数改为cls method？
         for r in results:
             token_counts.update(r)
         return token_counts    
     
     @staticmethod
-    def pretokenize_binary(file: bytes, pattern: str, special_tokens: Optional[List[str]] = None) -> Counter:
+    def pretokenize_binary(file: bytes, pattern: str, special_tokens: list[str] | None = None) -> Counter:
         '''
         pretokenizes a file and returns token frequencies
         '''
@@ -113,7 +111,7 @@ class BPETokenizer:
         return token_counts
     
     @staticmethod
-    def _parallel_pretokenize_worker(input_path: str, pattern: str, special_tokens: Optional[List[str]] = None, sta: int = 0, end: int = 0) -> Counter:
+    def _parallel_pretokenize_worker(input_path: str, pattern: str, special_tokens: list[str] | None = None, sta: int = 0, end: int = 0) -> Counter:
         '''
         called by subprocesses in pretokenize_parallel, returns token frequencies
         '''
