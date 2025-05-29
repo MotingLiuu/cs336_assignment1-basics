@@ -46,7 +46,7 @@ class BPETokenizer:
             
             
     @staticmethod
-    def _merge_pair_token_counts(token_counts: Dict[str, Tuple[List[bytes], int]], pair: bytes) -> Counter[Tuple[int]]:
+    def _merge_pair_token_counts(token_counts: Dict[str, Tuple[List[bytes], int]], pair: bytes) -> Counter[bytes]:
         pair_frequency_change_counter = Counter()
         for _, (token_bytes, count) in token_counts.items():
             if len(token_bytes) > 1:
@@ -136,14 +136,14 @@ if __name__ == '__main__':
     # ===
     def test_merge_pair_token_counts():
         test_dict = {
-            'a': ([(1,), (2,), (5,), (3,), (4,), (4,)], 1),
-            'b': ([(1,), (2,), (2,), (3,), (4,)], 2),
-            'c': ([(5,), (1,), (2,), (6,), (3,), (4,)], 3),
-            'd': ([(7,), (1,), (2,), (8,), (3,), (4,)], 2),
-            'e': ([(1,), (2,), (3,), (4,), (9,)], 1),
-            'f': ([(10,), (1,), (2,), (3,), (4,)], 4)
-        }
-        pair = (2, 3)
+            'a': ([bytes([1]), bytes([2]), bytes([5]), bytes([3]), bytes([4]), bytes([4])], 1),
+            'b': ([bytes([1]), bytes([2]), bytes([2]), bytes([3]), bytes([4])], 2),
+            'c': ([bytes([5]), bytes([1]), bytes([2]), bytes([6]), bytes([3]), bytes([4])], 3),
+            'd': ([bytes([7]), bytes([1]), bytes([2]), bytes([8]), bytes([3]), bytes([4])], 2),
+            'e': ([bytes([1]), bytes([2]), bytes([3]), bytes([4]), bytes([9])], 1),
+            'f': ([bytes([10]), bytes([1]), bytes([2]), bytes([3]), bytes([4])], 4),
+            }
+        pair = bytes([2]) + bytes([3]) 
         pair_changed_counter = BPETokenizer._merge_pair_token_counts(test_dict, pair)
         print(pair_changed_counter)
         print(test_dict)
@@ -154,13 +154,13 @@ if __name__ == '__main__':
     # ===
     def test_pair_frequency():
         test_dict = {
-            'a': ([(1,), (2,), (5,), (3,), (4,), (4,)], 1),
-            'b': ([(1,), (2,), (2,), (3,), (4,)], 2),
-            'c': ([(5,), (1,), (2,), (6,), (3,), (4,)], 3),
-            'd': ([(7,), (1,), (2,), (8,), (3,), (4,)], 2),
-            'e': ([(1,), (2,), (3,), (4,), (9,)], 1),
-            'f': ([(10,), (1,), (2,), (3,), (4,)], 4)
-        }
+            'a': ([bytes([1]), bytes([2]), bytes([5]), bytes([3]), bytes([4]), bytes([4])], 1),
+            'b': ([bytes([1]), bytes([2]), bytes([2]), bytes([3]), bytes([4])], 2),
+            'c': ([bytes([5]), bytes([1]), bytes([2]), bytes([6]), bytes([3]), bytes([4])], 3),
+            'd': ([bytes([7]), bytes([1]), bytes([2]), bytes([8]), bytes([3]), bytes([4])], 2),
+            'e': ([bytes([1]), bytes([2]), bytes([3]), bytes([4]), bytes([9])], 1),
+            'f': ([bytes([10]), bytes([1]), bytes([2]), bytes([3]), bytes([4])], 4),
+            }
         print(BPETokenizer._pair_frequency(test_dict))
 
     
