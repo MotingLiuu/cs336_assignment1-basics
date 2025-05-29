@@ -2,20 +2,17 @@ from typing import Optional, List, Dict, BinaryIO, Tuple
 from utils import find_chunk_boundaries
 from collections import defaultdict, Counter
 from multiprocessing import Pool
-import tqdm
+from tqdm import tqdm
 import heapq
 import regex as re
 import time
 import os
 
-'''
-Auxiliary functions
-'''
 
 class BPETokenizer:
     def __init__(self, vocab_size: int, special_tokens: Optional[List[str]] = None):
         self.vocab_size = vocab_size
-        self.special_tokens = special_tokens if special_tokens else []
+        self.special_tokens = special_tokens if special_tokens else None
         self.vocab = {}
         self.merges = []
         self.PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
@@ -23,6 +20,7 @@ class BPETokenizer:
     def train(self, input_path: str):
         token_counts = BPETokenizer.pretokenize_parallel(input_path, self.PAT, self.special_tokens)
         # reform the token_counts{bytes: int} to {bytes: (List, int)}
+        # print(f'DEBUG: token_counts: {token_counts}\n')
         token_counts = BPETokenizer._reform_tokens_counts(token_counts)
         # get the pair freqeuncy: Counter
         pair_counts = BPETokenizer._pair_frequency(token_counts)
@@ -30,11 +28,13 @@ class BPETokenizer:
         #   find the most freqeunt
         #       merge token_counts
         #       change the pair frequency
+        #print(f'DEBUG: pair_counts: {pair_counts}\n')
         for i in tqdm(range(self.vocab_size)):
             most_frequent_pair = max(pair_counts, key=pair_counts.get)
             # TODO: merge in token_counts
             # TODO: change the pair frequency
             self.merges.append(most_frequent_pair)
+            #print(f'DEBUG: self.merges: {self.merges}\n')
             self.vocab[i] = bytes(most_frequent_pair)
             pair_changed_counter = BPETokenizer._merge_pair_token_counts(token_counts, most_frequent_pair)
             pair_counts.update(pair_changed_counter)
@@ -122,38 +122,56 @@ class BPETokenizer:
         return BPETokenizer.pretokenize_binary(chunk, pattern, special_tokens)
                 
 if __name__ == '__main__':
-    ''' # Here is some test for pretokenize
-    BPE = BPETokenizer(30, [r'<|endoftext|>'])
-    DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-train.txt')
-    DATA_PATH = os.path.abspath(DATA_PATH)
-    start = time.time()
-    #with open(DATA_PATH, 'rb') as f:
-    #    token_counts = BPETokenizer.pretokenize_binary(f.read(), BPE.PAT)
-    token_counts = BPETokenizer.pretokenize_parallel(DATA_PATH, BPE.PAT)
-    end = time.time()
-    for idx, (token, count) in enumerate(token_counts.most_common()):
-        if idx < 100:
-            print(token, count)
-    print(f'Time cost is {end - start}')
-    '''
     
+    def test_pretokenize_parallel():
+        DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
+        DATA_PATH = os.path.abspath(DATA_PATH)
+        print(BPETokenizer.pretokenize_parallel(DATA_PATH, r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""))
+        
     # ===
     # Test of BPETokenizer._merge_pair_token_counts
     # ===
     def test_merge_pair_token_counts():
         test_dict = {
-            'a': ([(1,), (2,), (3,), (4,)], 2),
-            'b': ([(2,), (3,)], 3),
-            'c': ([(7,), (2,), (3,)], 1)
+            'a': ([(1,), (2,), (5,), (3,), (4,), (4,)], 1),
+            'b': ([(1,), (2,), (2,), (3,), (4,)], 2),
+            'c': ([(5,), (1,), (2,), (6,), (3,), (4,)], 3),
+            'd': ([(7,), (1,), (2,), (8,), (3,), (4,)], 2),
+            'e': ([(1,), (2,), (3,), (4,), (9,)], 1),
+            'f': ([(10,), (1,), (2,), (3,), (4,)], 4)
         }
         pair = (2, 3)
         pair_changed_counter = BPETokenizer._merge_pair_token_counts(test_dict, pair)
         print(pair_changed_counter)
+        print(test_dict)
     
+    
+    # ===
+    # Test of BPETokenizer._pair_frequency
+    # ===
+    def test_pair_frequency():
+        test_dict = {
+            'a': ([(1,), (2,), (5,), (3,), (4,), (4,)], 1),
+            'b': ([(1,), (2,), (2,), (3,), (4,)], 2),
+            'c': ([(5,), (1,), (2,), (6,), (3,), (4,)], 3),
+            'd': ([(7,), (1,), (2,), (8,), (3,), (4,)], 2),
+            'e': ([(1,), (2,), (3,), (4,), (9,)], 1),
+            'f': ([(10,), (1,), (2,), (3,), (4,)], 4)
+        }
+        print(BPETokenizer._pair_frequency(test_dict))
+
+    
+    # ===
+    # Test of BPETokeinzer.train
+    # ===
     def test_BPE_train():
-        BPE = BPETokenizer(30, [r'<|endoftext|>'])
-        DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-test.txt')
+        BPE = BPETokenizer(100, [r'<|endoftext|>'])
+        DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
         DATA_PATH = os.path.abspath(DATA_PATH)
-        
-        
-    test_merge_pair_token_counts()
+        BPE.train(DATA_PATH)
+        print(BPE.vocab)
+    
+    #test_pretokenize_parallel()
+    #test_merge_pair_token_counts()
+    #test_pair_frequency()
+    test_BPE_train()
