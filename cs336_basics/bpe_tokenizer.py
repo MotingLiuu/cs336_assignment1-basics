@@ -1,8 +1,8 @@
-from typing import Optional, List, Dict, BinaryIO
+from typing import Optional, List, Dict, BinaryIO, Tuple
 from utils import find_chunk_boundaries
 from collections import defaultdict, Counter
 from multiprocessing import Pool
-from sortedcontainers import SortedDict
+import heapq
 import regex as re
 import time
 import os
@@ -21,20 +21,38 @@ class BPETokenizer:
     
     def train(self, input_path: str):
         token_counts = BPETokenizer.pretokenize_parallel(input_path, self.PAT, self.special_tokens)
-        bytes_counts = {key.encode('utf-8'): item for key, item in token_counts.items()}
-        # for i < vocab_size
-            # find the most frequent neighbor from sorteddict neighbors 
-            # add the most frequent neighbor (a, b) to self.merge
-            # merge the (a, b) in token_counts (function
-            # change the sorteddict of neighbors (function
-        
+        # reform the token_counts{bytes: int} to {bytes: (List, int)}
+        token_counts = BPETokenizer._reform_tokens_counts(token_counts)
+        # get the pair freqeuncy: Counter
+        pair_counts = BPETokenizer._pair_frequency(token_counts)
+        # for i < self.vocab
+        #   find the most freqeunt
+        #       merge token_counts
+        #       change the pair frequency
+        for i in range(self.vocab_size):
+            most_frequent_pair = max(pair_counts, key=pair_counts.get)
+            # TODO: merge in token_counts
+            
+            # TODO: change the pair frequency
+            
     @staticmethod
-    def pair_frequency(bytes_counts: Counter) -> SortedDict:
+    def _merge_pair_token_counts(token_counts: Dict[str, Tuple[List[Tuple[int]], int]], pair: Tuple[int]):
+        for _, (token_bytes, count) in token_counts.items():
+            for idx in len(token_bytes) -1:
+                if (token_bytes[idx], token_bytes[idx + 1]): 
+                    pass
+    
+    @staticmethod
+    def _pair_frequency(token_counts: Dict[str, Tuple[List[Tuple[int]], int]]) -> Counter[Tuple[int]]:
         pair_counter = Counter()
-        for token, counts in bytes_counts.items():
-            pairs = {(left, right) : counts for left, right in zip(token[1:], token[:-1])}
-            pair_counter.update(Counter(pairs))
-        return SortedDict(pair_counter)
+        for _, (token_bytes, count) in token_counts.items():
+            lefts, rights = token_bytes[:-1], token_bytes[1:]
+            pair_counter.update(Counter({left + right: count for left, right in zip(lefts, rights)}))
+        return pair_counter
+    
+    @staticmethod
+    def _reform_tokens_counts(token_counts: Counter[str]) -> Dict[str, Tuple[List[int], int]]:
+        return {token: ([(byte,) for byte in token.encode('utf-8')], count) for token, count in token_counts.items()}
     
     @staticmethod
     def pretokenize_parallel(input_path: str, pattern, special_tokens: Optional[List[str]] = None) -> Counter:
@@ -102,7 +120,6 @@ if __name__ == '__main__':
     DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
     DATA_PATH = os.path.abspath(DATA_PATH)
     token_counts = BPETokenizer.pretokenize_parallel(DATA_PATH, BPE.PAT)
-    bytes_counts = {key.encode('utf-8'): item for key, item in token_counts.items()}
-    pair_sd = BPETokenizer.pair_frequency(bytes_counts)
-    print(pair_sd)
-    
+    token_counts = BPETokenizer._reform_tokens_counts(token_counts)
+    pair_counts = BPETokenizer._pair_frequency(token_counts)
+    print(pair_counts)
