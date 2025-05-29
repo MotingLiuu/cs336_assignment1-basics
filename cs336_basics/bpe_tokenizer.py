@@ -3,7 +3,6 @@ from utils import find_chunk_boundaries
 from collections import defaultdict, Counter
 from multiprocessing import Pool
 from tqdm import tqdm
-import heapq
 import regex as re
 import time
 import os
@@ -31,14 +30,14 @@ class BPETokenizer:
         #   find the most freqeunt
         #       merge token_counts
         #       change the pair frequency
-        #print(f'DEBUG: pair_counts: {pair_counts}\n')
+        # print(f'DEBUG: pair_counts: {pair_counts}\n')
         vocab_size_before_train = len(self.vocab)
         for i in tqdm(range(vocab_size_before_train, self.vocab_size)):
             most_frequent_pair = max(pair_counts, key=pair_counts.get)
             # TODO: merge in token_counts
             # TODO: change the pair frequency
             self.merges.append(most_frequent_pair)
-            #print(f'DEBUG: self.merges: {self.merges}\n')
+            # print(f'DEBUG: self.merges: {self.merges}\n')
             self.vocab[i] = bytes(most_frequent_pair)
             pair_changed_counter = BPETokenizer._merge_pair_token_counts(token_counts, most_frequent_pair)
             pair_counts.update(pair_changed_counter)
@@ -47,7 +46,7 @@ class BPETokenizer:
             
             
     @staticmethod
-    def _merge_pair_token_counts(token_counts: Dict[str, Tuple[List[Tuple[int]], int]], pair: Tuple[int]) -> Counter[Tuple[int]]:
+    def _merge_pair_token_counts(token_counts: Dict[str, Tuple[List[bytes], int]], pair: bytes) -> Counter[Tuple[int]]:
         pair_frequency_change_counter = Counter()
         for _, (token_bytes, count) in token_counts.items():
             if len(token_bytes) > 1:
@@ -67,7 +66,7 @@ class BPETokenizer:
                     
     
     @staticmethod
-    def _pair_frequency(token_counts: Dict[str, Tuple[List[Tuple[int]], int]]) -> Counter[Tuple[int]]:
+    def _pair_frequency(token_counts: Dict[str, Tuple[List[bytes], int]]) -> Counter[bytes]:
         pair_counter = Counter()
         for _, (token_bytes, count) in token_counts.items():
             lefts, rights = token_bytes[:-1], token_bytes[1:]
@@ -75,8 +74,8 @@ class BPETokenizer:
         return pair_counter
     
     @staticmethod
-    def _reform_tokens_counts(token_counts: Counter[str]) -> Dict[str, Tuple[List[int], int]]:
-        return {token: ([(byte,) for byte in token.encode('utf-8')], count) for token, count in token_counts.items()}
+    def _reform_tokens_counts(token_counts: Counter[str]) -> Dict[str, Tuple[List[bytes], int]]:
+        return {token: ([bytes([byte]) for byte in token.encode('utf-8')], count) for token, count in token_counts.items()}
     
     @staticmethod
     def pretokenize_parallel(input_path: str, pattern, special_tokens: Optional[List[str]] = None) -> Counter:
@@ -169,11 +168,12 @@ if __name__ == '__main__':
     # Test of BPETokeinzer.train
     # ===
     def test_BPE_train():
-        BPE = BPETokenizer(100, [r'<|endoftext|>'])
+        BPE = BPETokenizer(500, [r'<|endoftext|>'])
         DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
         DATA_PATH = os.path.abspath(DATA_PATH)
         BPE.train(DATA_PATH)
         print(BPE.vocab)
+        print(BPE.merges)
     
     #test_pretokenize_parallel()
     #test_merge_pair_token_counts()
