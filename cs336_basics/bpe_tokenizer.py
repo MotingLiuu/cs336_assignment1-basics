@@ -2,6 +2,7 @@ from typing import Optional, List, Dict, BinaryIO, Tuple
 from utils import find_chunk_boundaries
 from collections import defaultdict, Counter
 from multiprocessing import Pool
+import tqdm
 import heapq
 import regex as re
 import time
@@ -29,14 +30,16 @@ class BPETokenizer:
         #   find the most freqeunt
         #       merge token_counts
         #       change the pair frequency
-        for i in range(self.vocab_size):
+        for i in tqdm(range(self.vocab_size)):
             most_frequent_pair = max(pair_counts, key=pair_counts.get)
             # TODO: merge in token_counts
             # TODO: change the pair frequency
             self.merges.append(most_frequent_pair)
+            self.vocab[i] = bytes(most_frequent_pair)
             pair_changed_counter = BPETokenizer._merge_pair_token_counts(token_counts, most_frequent_pair)
             pair_counts.update(pair_changed_counter)
             pair_counts.pop(most_frequent_pair)
+            
             
             
     @staticmethod
@@ -147,4 +150,10 @@ if __name__ == '__main__':
         pair_changed_counter = BPETokenizer._merge_pair_token_counts(test_dict, pair)
         print(pair_changed_counter)
     
+    def test_BPE_train():
+        BPE = BPETokenizer(30, [r'<|endoftext|>'])
+        DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-test.txt')
+        DATA_PATH = os.path.abspath(DATA_PATH)
+        
+        
     test_merge_pair_token_counts()
