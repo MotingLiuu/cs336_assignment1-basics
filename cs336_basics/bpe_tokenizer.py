@@ -20,20 +20,13 @@ class BPETokenizer:
     def train(self, input_path: str):
         token_counts = BPETokenizer.pretokenize_parallel(input_path, self.PAT, self.special_tokens)
         # reform the token_counts{bytes: int} to {bytes: (List, int)}
-        # print(f'DEBUG: token_counts: {token_counts}\n')
         token_counts = BPETokenizer._reform_tokens_counts(token_counts)
         # get the pair freqeuncy: Counter
         pair_counts = BPETokenizer._pair_frequency(token_counts)
-        # for i < self.vocab
-        #   find the most freqeunt
-        #       merge token_counts
-        #       change the pair frequency
-        # print(f'DEBUG: pair_counts: {pair_counts}\n')
         vocab_size_before_train = len(self.vocab)
         for i in tqdm(range(vocab_size_before_train, self.vocab_size)):
             most_frequent_pair = max(pair_counts, key=lambda pair: (pair_counts[pair], pair))
             self.merges.append(most_frequent_pair)
-            # print(f'DEBUG: most_frequent_pair: {most_frequent_pair}, count: {pair_counts[most_frequent_pair]}\n')
             self.vocab[i] = most_frequent_pair[0] + most_frequent_pair[1]
             pair_changed_counter = BPETokenizer._merge_pair_token_counts(token_counts, most_frequent_pair)
             pair_counts.update(pair_changed_counter)
@@ -63,8 +56,6 @@ class BPETokenizer:
     def _pair_frequency(token_counts: dict[str, tuple[list[bytes], int]]) -> Counter[tuple[bytes]]:
         pair_counter = Counter()
         for _, (token_bytes, count) in token_counts.items():
-            # lefts, rights = token_bytes[:-1], token_bytes[1:]
-            # pair_counter.update(Counter({(left, right): count for left, right in zip(lefts, rights)}))
             for idx in range(len(token_bytes) - 1):
                 pair_counter[(token_bytes[idx], token_bytes[idx + 1])] += count
         return pair_counter
@@ -90,8 +81,6 @@ class BPETokenizer:
             results = p.starmap(BPETokenizer._parallel_pretokenize_worker, subprocess_args) # 这里使用了硬编码，考虑将函数改为cls method？
         for r in results:
             token_counts.update(r)
-        pretoken_result = sorted([(tok.encode('utf-8'), count) for tok, count in token_counts.items()], key=lambda item: -item[1])
-        # print(f'DEBUG pretoken_result: {pretoken_result}')
         return token_counts    
     
     @staticmethod
@@ -181,5 +170,5 @@ if __name__ == '__main__':
     
     #test_pretokenize_parallel()
     #test_merge_pair_token_counts()
-    test_pair_frequency()
+    #test_pair_frequency()
     #test_BPE_train()
