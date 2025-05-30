@@ -28,7 +28,7 @@ class BPETokenizer:
         #   find the most freqeunt
         #       merge token_counts
         #       change the pair frequency
-        print(f'DEBUG: pair_counts: {pair_counts}\n')
+        # print(f'DEBUG: pair_counts: {pair_counts}\n')
         vocab_size_before_train = len(self.vocab)
         for i in tqdm(range(vocab_size_before_train, self.vocab_size)):
             most_frequent_pair = max(pair_counts, key=lambda pair: (pair_counts[pair], pair))
@@ -45,8 +45,8 @@ class BPETokenizer:
         pair_frequency_change_counter = Counter()
         for _, (token_bytes, count) in token_counts.items():
             if len(token_bytes) > 1:
-                idx = len(token_bytes) - 2
-                while idx > -1:
+                idx = 0
+                while idx < len(token_bytes) - 1:
                     if (token_bytes[idx], token_bytes[idx + 1]) == pair:
                         if idx > 0:
                             pair_frequency_change_counter[(token_bytes[idx - 1], token_bytes[idx])] -= count
@@ -55,8 +55,7 @@ class BPETokenizer:
                             pair_frequency_change_counter[(token_bytes[idx + 1], token_bytes[idx + 2])] -= count
                             pair_frequency_change_counter[(token_bytes[idx] + token_bytes[idx + 1], token_bytes[idx + 2])] += count
                         token_bytes[idx] = token_bytes[idx] + token_bytes.pop(idx + 1)
-                        idx -= 1
-                    idx -= 1
+                    idx += 1
         return pair_frequency_change_counter
                     
     
