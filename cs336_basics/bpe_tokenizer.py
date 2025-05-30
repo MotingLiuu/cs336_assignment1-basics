@@ -1,4 +1,4 @@
-from utils import find_chunk_boundaries
+from .utils import find_chunk_boundaries
 from collections import Counter
 from multiprocessing import Pool
 from tqdm import tqdm
@@ -11,7 +11,7 @@ class BPETokenizer:
         self.vocab_size = vocab_size
         self.special_tokens = special_tokens if special_tokens else []
         self.vocab = {
-            **{idx: special_token for idx, special_token in enumerate(self.special_tokens)},
+            **{idx: special_token.encode('utf-8') for idx, special_token in enumerate(self.special_tokens)},
             **{num + len(self.special_tokens): bytes([num]) for num in range(256)}
         }
         self.merges = []
@@ -28,35 +28,32 @@ class BPETokenizer:
         #   find the most freqeunt
         #       merge token_counts
         #       change the pair frequency
-        # print(f'DEBUG: pair_counts: {pair_counts}\n')
+        print(f'DEBUG: pair_counts: {pair_counts}\n')
         vocab_size_before_train = len(self.vocab)
         for i in tqdm(range(vocab_size_before_train, self.vocab_size)):
-            most_frequent_pair = max(pair_counts, key=pair_counts.get)
-            # TODO: merge in token_counts
-            # TODO: change the pair frequency
+            most_frequent_pair = max(pair_counts, key=lambda pair: (pair_counts[pair], pair))
             self.merges.append(most_frequent_pair)
-            # print(f'DEBUG: self.merges: {self.merges}\n')
-            self.vocab[i] = bytes(most_frequent_pair)
+            # print(f'DEBUG: most_frequent_pair: {most_frequent_pair}, count: {pair_counts[most_frequent_pair]}\n')
+            self.vocab[i] = most_frequent_pair[0] + most_frequent_pair[1]
             pair_changed_counter = BPETokenizer._merge_pair_token_counts(token_counts, most_frequent_pair)
             pair_counts.update(pair_changed_counter)
             pair_counts.pop(most_frequent_pair)
             
-            
-            
+      
     @staticmethod
-    def _merge_pair_token_counts(token_counts: dict[str, tuple[list[bytes], int]], pair: bytes) -> Counter[bytes]:
+    def _merge_pair_token_counts(token_counts: dict[str, tuple[list[bytes], int]], pair: tuple[bytes]) -> Counter[tuple[bytes]]:
         pair_frequency_change_counter = Counter()
         for _, (token_bytes, count) in token_counts.items():
             if len(token_bytes) > 1:
                 idx = len(token_bytes) - 2
                 while idx > -1:
-                    if token_bytes[idx] + token_bytes[idx + 1] == pair:
+                    if (token_bytes[idx], token_bytes[idx + 1]) == pair:
                         if idx > 0:
-                            pair_frequency_change_counter[token_bytes[idx - 1] + token_bytes[idx]] -= count
-                            pair_frequency_change_counter[token_bytes[idx - 1] + token_bytes[idx] + token_bytes[idx + 1]] += count
+                            pair_frequency_change_counter[(token_bytes[idx - 1], token_bytes[idx])] -= count
+                            pair_frequency_change_counter[(token_bytes[idx - 1], token_bytes[idx] + token_bytes[idx + 1])] += count
                         if idx < len(token_bytes) - 2:
-                            pair_frequency_change_counter[token_bytes[idx + 1] + token_bytes[idx + 2]] -= count
-                            pair_frequency_change_counter[token_bytes[idx] + token_bytes[idx + 1] + token_bytes[idx + 2]] += count
+                            pair_frequency_change_counter[(token_bytes[idx + 1], token_bytes[idx + 2])] -= count
+                            pair_frequency_change_counter[(token_bytes[idx] + token_bytes[idx + 1], token_bytes[idx + 2])] += count
                         token_bytes[idx] = token_bytes[idx] + token_bytes.pop(idx + 1)
                         idx -= 1
                     idx -= 1
@@ -64,11 +61,13 @@ class BPETokenizer:
                     
     
     @staticmethod
-    def _pair_frequency(token_counts: dict[str, tuple[list[bytes], int]]) -> Counter[bytes]:
+    def _pair_frequency(token_counts: dict[str, tuple[list[bytes], int]]) -> Counter[tuple[bytes]]:
         pair_counter = Counter()
         for _, (token_bytes, count) in token_counts.items():
-            lefts, rights = token_bytes[:-1], token_bytes[1:]
-            pair_counter.update(Counter({left + right: count for left, right in zip(lefts, rights)}))
+            # lefts, rights = token_bytes[:-1], token_bytes[1:]
+            # pair_counter.update(Counter({(left, right): count for left, right in zip(lefts, rights)}))
+            for idx in range(len(token_bytes) - 1):
+                pair_counter[(token_bytes[idx], token_bytes[idx + 1])] += count
         return pair_counter
     
     @staticmethod
@@ -92,6 +91,8 @@ class BPETokenizer:
             results = p.starmap(BPETokenizer._parallel_pretokenize_worker, subprocess_args) # 这里使用了硬编码，考虑将函数改为cls method？
         for r in results:
             token_counts.update(r)
+        pretoken_result = sorted([(tok.encode('utf-8'), count) for tok, count in token_counts.items()], key=lambda item: -item[1])
+        # print(f'DEBUG pretoken_result: {pretoken_result}')
         return token_counts    
     
     @staticmethod
@@ -125,7 +126,7 @@ class BPETokenizer:
 if __name__ == '__main__':
     
     def test_pretokenize_parallel():
-        DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
+        DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/corpus.en')
         DATA_PATH = os.path.abspath(DATA_PATH)
         print(BPETokenizer.pretokenize_parallel(DATA_PATH, r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""))
         
@@ -141,7 +142,7 @@ if __name__ == '__main__':
             'e': ([bytes([1]), bytes([2]), bytes([3]), bytes([4]), bytes([9])], 1),
             'f': ([bytes([10]), bytes([1]), bytes([2]), bytes([3]), bytes([4])], 4),
             }
-        pair = bytes([2]) + bytes([3]) 
+        pair = (bytes([2]), bytes([3])) 
         pair_changed_counter = BPETokenizer._merge_pair_token_counts(test_dict, pair)
         print(pair_changed_counter)
         print(test_dict)
@@ -159,7 +160,13 @@ if __name__ == '__main__':
             'e': ([bytes([1]), bytes([2]), bytes([3]), bytes([4]), bytes([9])], 1),
             'f': ([bytes([10]), bytes([1]), bytes([2]), bytes([3]), bytes([4])], 4),
             }
-        print(BPETokenizer._pair_frequency(test_dict))
+        BPE = BPETokenizer(500, [r'<|endoftext|>'])
+        DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/corpus.en')
+        DATA_PATH = os.path.abspath(DATA_PATH)
+        token_counts = BPETokenizer.pretokenize_parallel(DATA_PATH, BPE.PAT)
+        token_counts = BPETokenizer._reform_tokens_counts(token_counts)
+        pair_counts = BPETokenizer._pair_frequency(token_counts)
+        print(pair_counts)
 
     
     # ===
@@ -175,5 +182,5 @@ if __name__ == '__main__':
     
     #test_pretokenize_parallel()
     #test_merge_pair_token_counts()
-    #test_pair_frequency()
-    test_BPE_train()
+    test_pair_frequency()
+    #test_BPE_train()
