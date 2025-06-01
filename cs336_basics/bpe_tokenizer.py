@@ -5,7 +5,6 @@ from tqdm import tqdm
 import regex as re
 import os
 
-
 class BPETokenizer:
     def __init__(self, vocab_size: int, special_tokens: list[str] | None = None):
         self.vocab_size = vocab_size
@@ -74,10 +73,10 @@ class BPETokenizer:
         token_counts = Counter()
         with open(input_path, 'rb') as f:
             boundaries = find_chunk_boundaries(
-                f, 128, b"<|endoftext|>"
+                f, 256, b"<|endoftext|>"
             )
         subprocess_args = [(input_path, pattern, special_tokens, sta, end) for sta, end in zip(boundaries[:-1], boundaries[1:])]
-        with Pool(8) as p:
+        with Pool(16) as p:
             results = p.starmap(BPETokenizer._parallel_pretokenize_worker, subprocess_args) # 这里使用了硬编码，考虑将函数改为cls method？
         for r in results:
             token_counts.update(r)
@@ -93,7 +92,7 @@ class BPETokenizer:
         token_counts = Counter()
         chunk = file.decode('utf-8', errors='ignore')
         chunks = re.split('|'.join(map(re.escape, special_tokens)), chunk)
-        for chunk in chunks:
+        for chunk in tqdm(chunks):
                 tokens = [re_match.group() for re_match in re.finditer(pattern, chunk)]
                 counts = Counter(tokens)
                 token_counts.update(counts)
