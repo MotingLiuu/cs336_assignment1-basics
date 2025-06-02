@@ -3,12 +3,12 @@
 # Default script to run
 SCRIPT_PATH="experiments/bpe_train_TinyStories.py"
 # Default output report (文本)
-REPORT_PATH="scalene_profile_cputime_TinyStories_train_vocab2000.html"
+REPORT_PATH="scalene_profile_cputime_TinyStories_test_vocab_20000_cpu.html"
 
 # Usage message
 usage() {
     echo "Usage: $0 [SCRIPT_PATH] [REPORT_PATH]"
-    echo "Example: $0 experiments/bpe_train_TinyStories.py scalene_profile.txt"
+    echo "Example: $0 experiments/bpe_train_TinyStories.py scalene_profile"
     exit 1
 }
 
