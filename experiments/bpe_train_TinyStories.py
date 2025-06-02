@@ -4,9 +4,9 @@ import time
 import json
 
 DATA_PATH = str((Path(__file__).parent / '../../data/TinyStoriesV2-GPT4-valid.txt').resolve())
-bpe_TinyStories = BPETokenizer(2000, [r'<|endoftext|>'])
+bpe_TinyStories = BPETokenizer(20000, [r'<|endoftext|>'])
 start = time.time()
-bpe_TinyStories.train(DATA_PATH)
+bpe_TinyStories.train(DATA_PATH, parallel=False)
 end = time.time()
 
 vocab_to_save = {
@@ -21,7 +21,7 @@ longest_tokens = sorted(
     bpe_TinyStories.vocab.items(),
     key=lambda x: len(x[1]),
     reverse=True
-)[:100]
+)[:10]
 
 print(f'train on TinyStories took {end - start}s\n')
 print(f'longest_tokens: {longest_tokens}\n')
