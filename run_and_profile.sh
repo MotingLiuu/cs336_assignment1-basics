@@ -3,7 +3,7 @@
 # Default script to run
 SCRIPT_PATH="experiments/bpe_train_TinyStories.py"
 # Default output report (文本)
-REPORT_PATH="scalene_profile_cputime_TinyStories_test_vocab_20000_cpu.html"
+REPORT_PATH="scalene_profile_cputime_TinyStories_valid_vocab_10000_cpu.html"
 
 # Usage message
 usage() {

@@ -4,7 +4,7 @@ import time
 import json
 
 DATA_PATH = str((Path(__file__).parent / '../../data/TinyStoriesV2-GPT4-valid.txt').resolve())
-bpe_TinyStories = BPETokenizer(20000, [r'<|endoftext|>'])
+bpe_TinyStories = BPETokenizer(10000, [r'<|endoftext|>'])
 start = time.time()
 bpe_TinyStories.train(DATA_PATH, parallel=False)
 end = time.time()

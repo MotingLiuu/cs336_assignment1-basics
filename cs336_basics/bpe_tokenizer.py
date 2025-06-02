@@ -1,7 +1,7 @@
 from .utils import find_chunk_boundaries
 from collections import Counter
 from multiprocessing import Pool
-#from tqdm import tqdm
+from tqdm import tqdm
 import regex as re
 import os
 
@@ -26,7 +26,7 @@ class BPETokenizer:
         # get the pair freqeuncy: Counter
         pair_counts = BPETokenizer._pair_frequency(token_counts)
         vocab_size_before_train = len(self.vocab)
-        for i in range(vocab_size_before_train, self.vocab_size):
+        for i in tqdm(range(vocab_size_before_train, self.vocab_size)):
             most_frequent_pair = max(pair_counts, key=lambda pair: (pair_counts[pair], pair))
             self.merges.append(most_frequent_pair)
             self.vocab[i] = most_frequent_pair[0] + most_frequent_pair[1]
@@ -75,7 +75,7 @@ class BPETokenizer:
                 f, 64, b"<endoftext>"
             )
         print("Pretokenizing without parallel... \n")
-        for sta, end in zip(boundaries[:-1], boundaries[1:]):
+        for sta, end in tqdm(zip(boundaries[:-1], boundaries[1:])):
             with open(input_path, 'rb') as f:
                 f.seek(sta)
                 chunk = f.read(end -sta)
