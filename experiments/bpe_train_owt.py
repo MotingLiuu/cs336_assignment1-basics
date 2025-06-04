@@ -6,7 +6,7 @@ import json
 DATA_PATH = str((Path(__file__).parent / '../../data/owt_train.txt').resolve())
 bpe_TinyStories = BPETokenizer(32000, [r'<|endoftext|>'])
 start = time.time()
-bpe_TinyStories.train(DATA_PATH)
+bpe_TinyStories.train(DATA_PATH, parallel=True)
 end = time.time()
 
 vocab_to_save = {

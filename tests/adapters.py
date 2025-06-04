@@ -590,5 +590,5 @@ def run_train_bpe(
     """
     from cs336_basics import bpe_tokenizer
     BPE = bpe_tokenizer.BPETokenizer(vocab_size=vocab_size, special_tokens=special_tokens)
-    BPE.train(input_path=input_path)
+    BPE.train(input_path=input_path, debug=True)
     return BPE.vocab, BPE.merges

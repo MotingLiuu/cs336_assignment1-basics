@@ -1,6 +1,7 @@
 from .utils import find_chunk_boundaries
 from collections import Counter
 from multiprocessing import Pool
+import time
 from tqdm import tqdm
 import regex as re
 import os
@@ -16,11 +17,16 @@ class BPETokenizer:
         self.merges = []
         self.PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
     
-    def train(self, input_path: str, parallel: bool = True):
+    def train(self, input_path: str, parallel: bool = True, debug: bool = False):
+        if debug:
+            start_time = time.time()
         if parallel:
             token_counts = BPETokenizer.pretokenize_parallel(input_path, self.PAT, self.special_tokens)
         else:
             token_counts = BPETokenizer.pretokenize(input_path, self.PAT, self.special_tokens)
+        if debug:
+            end_pretokenization_time = time.time()
+            print(f"Time cost for pertokenization: {end_pretokenization_time - start_time}")
         # reform the token_counts{bytes: int} to {bytes: (List, int)}
         token_counts = BPETokenizer._reform_tokens_counts(token_counts)
         # get the pair freqeuncy: Counter
@@ -33,6 +39,9 @@ class BPETokenizer:
             pair_changed_counter = BPETokenizer._merge_pair_token_counts(token_counts, most_frequent_pair)
             pair_counts.update(pair_changed_counter)
             pair_counts.pop(most_frequent_pair)
+        if debug:
+            end_merge_time = time.time()
+            print(f"DEBUG: Time cost for mergeing: {end_merge_time - start_time}")
 
     @staticmethod
     def _merge_pair_token_counts(token_counts: dict[str, tuple[list[bytes], int]], pair: tuple[bytes]) -> Counter[tuple[bytes]]:
