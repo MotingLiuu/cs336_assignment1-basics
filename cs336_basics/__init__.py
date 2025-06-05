@@ -6,3 +6,4 @@ except importlib.metadata.PackageNotFoundError:
 
 
 from .bpe_tokenizer import BPETokenizer
+from .bpe_word import Word
