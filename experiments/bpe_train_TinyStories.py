@@ -2,11 +2,21 @@ from cs336_basics import BPETokenizer
 from pathlib import Path
 import time
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO, 
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    filename="train_TinyStories_valid.log",
+    filemode="w",
+)
 
 DATA_PATH = str((Path(__file__).parent / '../../data/TinyStoriesV2-GPT4-valid.txt').resolve())
 bpe_TinyStories = BPETokenizer(10000, [r'<|endoftext|>'])
 start = time.time()
-bpe_TinyStories.train(DATA_PATH, parallel=False)
+bpe_TinyStories.train(DATA_PATH, parallel=True)
 end = time.time()
 
 vocab_to_save = {
