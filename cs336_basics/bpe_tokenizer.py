@@ -1,10 +1,13 @@
 from .utils import find_chunk_boundaries
 from collections import Counter
 from multiprocessing import Pool
-import time
 from tqdm import tqdm
+import time
+import logging
 import regex as re
 import os
+
+logger = logging.getLogger(__name__)
 
 class BPETokenizer:
     def __init__(self, vocab_size: int, special_tokens: list[str] | None = None):
@@ -17,31 +20,32 @@ class BPETokenizer:
         self.merges = []
         self.PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
     
-    def train(self, input_path: str, parallel: bool = True, debug: bool = False):
-        if debug:
-            start_time = time.time()
+    def train(self, input_path: str, parallel: bool = True):
+        logger.info(f"Started Pretokenization: {input_path} (parallel={parallel}).\n")
+        time_sta_pretokenization = time.time()
         if parallel:
             token_counts = BPETokenizer.pretokenize_parallel(input_path, self.PAT, self.special_tokens)
         else:
             token_counts = BPETokenizer.pretokenize(input_path, self.PAT, self.special_tokens)
-        if debug:
-            end_pretokenization_time = time.time()
-            print(f"Time cost for pertokenization: {end_pretokenization_time - start_time}")
+        logger.info(f"Finished Pretokenization in {time.time() - time_sta_pretokenization:.2f} seconds.\n")
         # reform the token_counts{bytes: int} to {bytes: (List, int)}
         token_counts = BPETokenizer._reform_tokens_counts(token_counts)
         # get the pair freqeuncy: Counter
         pair_counts = BPETokenizer._pair_frequency(token_counts)
         vocab_size_before_train = len(self.vocab)
+        logger.info(f"Started Merging\n")
+        time_sta_merging = time.time()
         for i in tqdm(range(vocab_size_before_train, self.vocab_size)):
+            if i % 100 == 0:
+                logger.info(f"Iteration {i}, vocab size: {len(self.vocab)}")
             most_frequent_pair = max(pair_counts, key=lambda pair: (pair_counts[pair], pair))
             self.merges.append(most_frequent_pair)
             self.vocab[i] = most_frequent_pair[0] + most_frequent_pair[1]
             pair_changed_counter = BPETokenizer._merge_pair_token_counts(token_counts, most_frequent_pair)
             pair_counts.update(pair_changed_counter)
             pair_counts.pop(most_frequent_pair)
-        if debug:
-            end_merge_time = time.time()
-            print(f"DEBUG: Time cost for mergeing: {end_merge_time - start_time}")
+        logger.info(f"Finsished Merging in {time.time() - time_sta_merging:.2f} seconds, vocab size: {len(self.vocab)}\n")
+        
 
     @staticmethod
     def _merge_pair_token_counts(token_counts: dict[str, tuple[list[bytes], int]], pair: tuple[bytes]) -> Counter[tuple[bytes]]:
