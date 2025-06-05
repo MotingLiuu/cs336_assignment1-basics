@@ -1,11 +1,12 @@
 from .utils import find_chunk_boundaries
-from collections import Counter
+from collections import Counter, defaultdict
 from multiprocessing import Pool
 from tqdm import tqdm
 import time
 import logging
 import regex as re
 import os
+from .bpe_word import Word
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class BPETokenizer:
             token_counts = BPETokenizer.pretokenize(input_path, self.PAT, self.special_tokens)
         logger.info(f"Finished Pretokenization in {time.time() - time_sta_pretokenization:.2f} seconds.\n")
         # reform the token_counts{bytes: int} to {bytes: (List, int)}
-        token_counts = BPETokenizer._reform_tokens_counts(token_counts)
+        token_counts, pair2tokens = BPETokenizer._reform_tokens_counts(token_counts)
         # get the pair freqeuncy: Counter
         pair_counts = BPETokenizer._pair_frequency(token_counts)
         vocab_size_before_train = len(self.vocab)
@@ -75,8 +76,15 @@ class BPETokenizer:
         return pair_counter
     
     @staticmethod
-    def _reform_tokens_counts(token_counts: Counter[str]) -> dict[str, tuple[list[bytes], int]]:
-        return {token: ([bytes([byte]) for byte in token.encode('utf-8')], count) for token, count in token_counts.items()}
+    def _reform_tokens_counts(token_counts: Counter[str]) -> tuple[dict[bytes, tuple[list[bytes], int]], dict[tuple[bytes,bytes], set[bytes]]]:
+        token_counts_reformed = Counter()
+        pair2tokens = defaultdict(set)
+        for token, count in token_counts.items():
+            token_bytes = token.encode('utf-8')
+            token_counts_reformed[token_bytes] = (Word.get_bytes_list(token_bytes), count)
+            for pair in Word.count_pair(token_bytes):
+                pair2tokens[pair].add(token_bytes)
+        return token_counts_reformed, pair2tokens
     
     @staticmethod
     def pretokenize(input_path:str, pattern: str, special_tokens: list[str] | None = None) -> Counter:
