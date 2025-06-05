@@ -110,3 +110,14 @@ def test_banana_merge_an():
     })
     assert pair_changes == expected_changes
 
+def test_pair_count():
+    word = Word(b"abrad")
+    
+    expected_counter = Counter({
+        (b'a', b'b'): 1,  
+        (b'b', b'r'): 1, 
+        (b'r', b'a'): 1,  
+        (b'a', b'd'): 1,   
+    })
+    
+    assert Word.count_pair(word.bytes_repr) == expected_counter
