@@ -9,7 +9,8 @@ import numpy.typing as npt
 import torch
 from torch import Tensor
 
-
+import logging
+logger = logging.getLogger(__name__)
 
 def run_linear(
     d_in: int,
@@ -590,5 +591,5 @@ def run_train_bpe(
     """
     from cs336_basics import bpe_tokenizer
     BPE = bpe_tokenizer.BPETokenizer(vocab_size=vocab_size, special_tokens=special_tokens)
-    BPE.train(input_path=input_path, debug=True)
+    BPE.train(input_path=input_path)
     return BPE.vocab, BPE.merges
