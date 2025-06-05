@@ -8,9 +8,12 @@ class Word:
         self.bytes_repr = bytes_repr
         self.bytes_list: list[bytes] = []
         self._init_bytes_list()
-        
+    
+    
+    
     def _init_bytes_list(self):
         self.bytes_list = [bytes([byte]) for byte in self.bytes_repr]
+    
 
     def merge(self, pair_merge: tuple[bytes, bytes]) -> Counter[tuple[bytes, bytes]]:
         new_bytes_list: list[bytes] = []
@@ -35,3 +38,15 @@ class Word:
         self.bytes_list = new_bytes_list
         return pair_change_counter
                 
+    @staticmethod
+    def count_pair(bytes_repr: bytes):
+        if len(bytes_repr) < 1:
+            return Counter()
+        pair_counter = Counter((bytes([left]), bytes([right])) for left, right in zip(bytes_repr[:-1], bytes_repr[1:]))
+        return pair_counter
+    
+    @staticmethod
+    def get_bytes_list(bytes_repr: bytes):
+        return [bytes([byte]) for byte in bytes_repr]
+    
+    
