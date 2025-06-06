@@ -6,7 +6,6 @@ import time
 import logging
 import regex as re
 import os
-from .bpe_word import Word
 
 logger = logging.getLogger(__name__)
 
@@ -49,26 +48,54 @@ class BPETokenizer:
         
 
     @staticmethod
-    def _merge_pair_token_counts(token_counts: dict[str, tuple[list[bytes], int]], pair: tuple[bytes]) -> Counter[tuple[bytes]]:
-        pair_frequency_change_counter = Counter()
-        for _, (token_bytes, count) in token_counts.items():
-            if len(token_bytes) > 1:
-                idx = 0
-                while idx < len(token_bytes) - 1:
-                    if (token_bytes[idx], token_bytes[idx + 1]) == pair:
-                        if idx > 0:
-                            pair_frequency_change_counter[(token_bytes[idx - 1], token_bytes[idx])] -= count
-                            pair_frequency_change_counter[(token_bytes[idx - 1], token_bytes[idx] + token_bytes[idx + 1])] += count
-                        if idx < len(token_bytes) - 2:
-                            pair_frequency_change_counter[(token_bytes[idx + 1], token_bytes[idx + 2])] -= count
-                            pair_frequency_change_counter[(token_bytes[idx] + token_bytes[idx + 1], token_bytes[idx + 2])] += count
-                        token_bytes[idx] = token_bytes[idx] + token_bytes.pop(idx + 1)
+    def _merge_pair_token_counts(token_counts: dict[bytes, tuple[list[bytes], int]],  pair2tokens: dict[tuple[bytes, bytes], set[bytes]], pair: tuple[bytes, bytes]) -> Counter[tuple[bytes]]:
+        # merge would change token_counts[list[bytes]], pair2tokens, add some new pair, remove some pair eliminated during merge, change some pair's set
+        # update the pair_counts, without accessing to pair_counts
+        # TODO: merge list[bytes] in token_counts, find corresponding tokens from pair2tokens, then merge list[bytes] in token_counts, counts the side effect to pair2tokens, pair_counts
+        # TODO: update pair2tokens and pair_counts, using update
+        pair_change_counter = Counter()
+        for token in pair2tokens[pair]:
+            bytes_list, count = token_counts[token]
+            new_bytes_list = []
+            idx = 0
+            while idx <= len(bytes_list) - 1:
+                if idx == len(bytes_list) - 1:
+                    new_bytes_list.append(bytes_list[-1])
+                    break
+                if (bytes_list[idx], bytes_list[idx + 1]) == pair:
+                    if idx > 0:
+                        pair_change_counter[(new_bytes_list[-1], bytes_list[idx] + bytes_list[idx + 1])] += count
+                        pair2tokens[(new_bytes_list[-1], bytes_list[idx] + bytes_list[idx + 1])].add(token)
+                        pair_change_counter[(new_bytes_list[-1], bytes_list[idx])] -= count
+                        pair2tokens[(new_bytes_list[-1], bytes_list[idx])].remove(token)
+                    if idx < len(bytes_list) - 2:
+                        pair_change_counter[(bytes_list[idx] + bytes_list[idx + 1], bytes_list[idx + 2])] += count
+                        pair2tokens[(bytes_list[idx] + bytes_list[idx + 1], bytes_list[idx + 2])].add(token)
+                        pair_change_counter[(bytes_list[idx + 1], bytes_list[idx + 2])] -= count
+                        pair2tokens[(bytes_list[idx + 1], bytes_list[idx + 2])].remove(token)
+                    new_bytes_list.append(bytes_list[idx] + bytes_list[idx + 1])
                     idx += 1
-        return pair_frequency_change_counter
-                    
+                else:
+                    new_bytes_list.append(bytes_list[idx])
+                idx += 1
+                token_counts[token] = (new_bytes_list, count)
+        pair2tokens.pop(pair)
+        return pair_change_counter
+
+    @staticmethod
+    def count_pair(bytes_repr: bytes):
+        if len(bytes_repr) < 1:
+            return Counter()
+        pair_counter = Counter((bytes([left]), bytes([right])) for left, right in zip(bytes_repr[:-1], bytes_repr[1:]))
+        return pair_counter
+
+    @staticmethod
+    def get_bytes_list(bytes_repr: bytes):
+        return [bytes([byte]) for byte in bytes_repr]           
+            
     
     @staticmethod
-    def _pair_frequency(token_counts: dict[str, tuple[list[bytes], int]]) -> Counter[tuple[bytes]]:
+    def _pair_frequency(token_counts: dict[bytes, tuple[list[bytes], int]]) -> Counter[tuple[bytes]]:
         pair_counter = Counter()
         for _, (token_bytes, count) in token_counts.items():
             for idx in range(len(token_bytes) - 1):
@@ -81,8 +108,8 @@ class BPETokenizer:
         pair2tokens = defaultdict(set)
         for token, count in token_counts.items():
             token_bytes = token.encode('utf-8')
-            token_counts_reformed[token_bytes] = (Word.get_bytes_list(token_bytes), count)
-            for pair in Word.count_pair(token_bytes):
+            token_counts_reformed[token_bytes] = (BPETokenizer.get_bytes_list(token_bytes), count)
+            for pair in BPETokenizer.count_pair(token_bytes):
                 pair2tokens[pair].add(token_bytes)
         return token_counts_reformed, pair2tokens
     
