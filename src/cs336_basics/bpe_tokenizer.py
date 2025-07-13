@@ -48,21 +48,31 @@ class BPETokenizer:
         
 
     @staticmethod
-    def _merge_pair_token_counts(token_counts: dict[str, tuple[list[bytes], int]], pair: tuple[bytes]) -> Counter[tuple[bytes]]:
+    def _merge_pair_token_counts(token_bytes_counts: dict[str, tuple[list[bytes], int]], pair2tokens: dict[tuple[bytes], set[str]], pair: tuple[bytes]) -> Counter[tuple[bytes]]:
         pair_frequency_change_counter = Counter()
-        for _, (token_bytes, count) in token_counts.items():
+        token_with_pair = pair2tokens.get(pair, set())
+        pair2tokens.pop(pair, None)
+        for token in token_with_pair:
+            token_bytes, count = token_bytes_counts[token]
             if len(token_bytes) > 1:
                 idx = 0
                 while idx < len(token_bytes) - 1:
                     if (token_bytes[idx], token_bytes[idx + 1]) == pair:
                         if idx > 0:
                             pair_frequency_change_counter[(token_bytes[idx - 1], token_bytes[idx])] -= count
+                            pair2tokens[(token_bytes[idx - 1], token_bytes[idx])].remove(token)
                             pair_frequency_change_counter[(token_bytes[idx - 1], token_bytes[idx] + token_bytes[idx + 1])] += count
+                            pair2tokens[(token_bytes[idx - 1], token_bytes[idx] + token_bytes[idx + 1])].add(token)
                         if idx < len(token_bytes) - 2:
                             pair_frequency_change_counter[(token_bytes[idx + 1], token_bytes[idx + 2])] -= count
+                            pair2tokens[(token_bytes[idx + 1], token_bytes[idx + 2])].remove(token)
                             pair_frequency_change_counter[(token_bytes[idx] + token_bytes[idx + 1], token_bytes[idx + 2])] += count
+                            pair2tokens[(token_bytes[idx] + token_bytes[idx + 1], token_bytes[idx + 2])].add(token)
                         token_bytes[idx] = token_bytes[idx] + token_bytes.pop(idx + 1)
                     idx += 1
+        for pair in list(pair2tokens.keys()):
+            if not pair2tokens[pair]:
+                pair2tokens.pop(pair)
         return pair_frequency_change_counter
                     
     
@@ -75,7 +85,7 @@ class BPETokenizer:
         return pair_counter
     
     @staticmethod
-    def _reform_tokens_counts(token_counts: Counter[str]) -> dict[str, tuple[list[bytes], int]]:
+    def _reform_tokens_counts(token_counts: Counter[str]) -> tuple[dict[str, tuple[list[bytes], int]], dict[tuple[bytes], set[str]]]:
         '''
         reform the token_counts from {token: int} to {token: ([bytes], int)} and pair2tokens {[bytes, bytes]: set[str]}
         '''
