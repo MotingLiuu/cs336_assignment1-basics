@@ -6,8 +6,29 @@ import time
 import logging
 import regex as re
 import os
+import heapq
 
 logger = logging.getLogger(__name__)
+
+class ReversePair:
+    def __init__(self, pair: tuple[bytes, bytes]):
+        self.pair = pair
+        
+    def __init__(self, pair):
+        self.pair = pair
+
+    def __lt__(self, other):
+        return self.pair > other.pair
+
+    def __eq__(self, other):
+        return self.pair == other.pair
+    
+    def __hash__(self):
+        return hash(self.pair)
+
+    def __repr__(self):
+        return f"ReversedPair({self.pair!r})"
+        
 
 class BPETokenizer:
     def __init__(self, vocab_size: int, special_tokens: list[str] | None = None):
@@ -31,19 +52,37 @@ class BPETokenizer:
         # reform the token_counts{bytes: int} to {bytes: (List, int)}
         token_bytes_counts, pair2tokens = BPETokenizer._reform_tokens_counts(token_counts)
         # get the pair freqeuncy: Counter
-        pair_counts = BPETokenizer._pair_frequency(token_bytes_counts)
+        pair_counts, max_heapq = BPETokenizer._pair_frequency(token_bytes_counts)
         vocab_size_before_train = len(self.vocab)
         logger.info(f"Started Merging\n")
         time_sta_merging = time.time()
         for i in tqdm(range(vocab_size_before_train, self.vocab_size)):
             if i % 100 == 0:
                 logger.info(f"Iteration {i}, vocab size: {len(self.vocab)}")
-            most_frequent_pair = max(pair_counts, key=lambda pair: (pair_counts[pair], pair))
+            most_frequent_pair = None
+            while max_heapq:
+                neg_count, reversed_pair = heapq.heappop(max_heapq)
+                pair = reversed_pair.pair
+                if pair_counts.get(pair) == -neg_count:
+                    most_frequent_pair = pair
+                    break
+            if most_frequent_pair is None:
+                logger.warning(f"No more pairs to merge at iteration {i}, stopping early.")
+                break
             self.merges.append(most_frequent_pair)
             self.vocab[i] = most_frequent_pair[0] + most_frequent_pair[1]
             pair_changed_counter = BPETokenizer._merge_pair_token_counts(token_bytes_counts, pair2tokens, most_frequent_pair)
             pair_counts.update(pair_changed_counter)
-            pair_counts.pop(most_frequent_pair)
+            pair_counts.pop(most_frequent_pair, None)
+            pairs_to_remove = []
+            for pair, change in pair_changed_counter.items():
+                new_count = pair_counts.get(pair)
+                if new_count is not None and new_count > 0:
+                    heapq.heappush(max_heapq, (-new_count, ReversePair(pair)))
+                elif new_count is not None and new_count <= 0:
+                    pairs_to_remove.append(pair)
+            for pair in pairs_to_remove:
+                pair_counts.pop(pair, None)
         logger.info(f"Finsished Merging in {time.time() - time_sta_merging:.2f} seconds, vocab size: {len(self.vocab)}\n")
         
 
@@ -84,10 +123,14 @@ class BPETokenizer:
     @staticmethod
     def _pair_frequency(token_counts: dict[str, tuple[list[bytes], int]]) -> Counter[tuple[bytes]]:
         pair_counter = Counter()
+        max_heapq = []
         for _, (token_bytes, count) in token_counts.items():
             for idx in range(len(token_bytes) - 1):
                 pair_counter[(token_bytes[idx], token_bytes[idx + 1])] += count
-        return pair_counter
+        for pair, count in pair_counter.items():
+            if count > 0:
+                heapq.heappush(max_heapq, (-count, ReversePair(pair)))
+        return pair_counter, max_heapq
     
     @staticmethod
     def _reform_tokens_counts(token_counts: Counter[str]) -> tuple[dict[str, tuple[list[bytes], int]], dict[tuple[bytes], set[str]]]:
