@@ -29,6 +29,7 @@ def setup_tokens_counts():
         "python": 3,
         "code": 2,
         "tee": 2,
+        "ababa": 1,
     })
 
 @pytest.fixture
@@ -46,6 +47,7 @@ def setup_token_bytes_counts():
         "python": ([b'p', b'y', b't', b'h', b'o', b'n'], 3),
         "code": ([b'c', b'o', b'd', b'e'], 2),
         "tee": ([b't', b'e', b'e'], 2),
+        "ababa": ([b'a', b'b', b'a', b'b', b'a'], 1),
     }
     
 @pytest.fixture
@@ -99,6 +101,8 @@ def setup_pair2tokens():
         (b'o', b'd'): {'code'},
         (b'd', b'e'): {'code'},
         (b'e', b'e'): {'tee'},
+        (b'a', b'b'): {'ababa'},
+        (b'b', b'a'): {'ababa'},
     })
     return pair2tokens
 
@@ -134,6 +138,7 @@ def test_merge_pair_token_counts(setup_token_bytes_counts, setup_pair2tokens):
         "python": ([b'p', b'y', b't', b'h', b'o', b'n'], 3),
         "code": ([b'c', b'o', b'd', b'e'], 2),
         "tee": ([b't', b'e', b'e'], 2),
+        "ababa": ([b'a', b'b', b'a', b'b', b'a'], 1),
     }
     
     expected_pair2tokens = {
@@ -183,6 +188,8 @@ def test_merge_pair_token_counts(setup_token_bytes_counts, setup_pair2tokens):
         (b'o', b'd'): {'code'},
         (b'd', b'e'): {'code'},
         (b'e', b'e'): {'tee'},
+        (b'a', b'b'): {'ababa'},
+        (b'b', b'a'): {'ababa'},
     }
     
     expected_pair_frequency_change_counter = {
