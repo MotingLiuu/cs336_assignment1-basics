@@ -88,6 +88,9 @@ class BPETokenizer:
 
     @staticmethod
     def _merge_pair_token_counts(token_bytes_counts: dict[str, tuple[list[bytes], int]], pair2tokens: dict[tuple[bytes], set[str]], pair: tuple[bytes]) -> Counter[tuple[bytes]]:
+        '''
+        merge the pair in token_bytes_counts and pair2tokens, return the change of pair frequency. This function modifies the token_bytes_counts and pair2tokens in place.
+        '''
         pair_frequency_change_counter = Counter()
         token_with_pair = pair2tokens.get(pair, set())
         pair2tokens.pop(pair, None)
