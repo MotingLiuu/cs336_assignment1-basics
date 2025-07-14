@@ -29,9 +29,9 @@ class BPETokenizer:
             token_counts = BPETokenizer.pretokenize(input_path, self.PAT, self.special_tokens)
         logger.info(f"Finished Pretokenization in {time.time() - time_sta_pretokenization:.2f} seconds.\n")
         # reform the token_counts{bytes: int} to {bytes: (List, int)}
-        token_counts = BPETokenizer._reform_tokens_counts(token_counts)
+        token_bytes_counts, pair2tokens = BPETokenizer._reform_tokens_counts(token_counts)
         # get the pair freqeuncy: Counter
-        pair_counts = BPETokenizer._pair_frequency(token_counts)
+        pair_counts = BPETokenizer._pair_frequency(token_bytes_counts)
         vocab_size_before_train = len(self.vocab)
         logger.info(f"Started Merging\n")
         time_sta_merging = time.time()
@@ -41,7 +41,7 @@ class BPETokenizer:
             most_frequent_pair = max(pair_counts, key=lambda pair: (pair_counts[pair], pair))
             self.merges.append(most_frequent_pair)
             self.vocab[i] = most_frequent_pair[0] + most_frequent_pair[1]
-            pair_changed_counter = BPETokenizer._merge_pair_token_counts(token_counts, most_frequent_pair)
+            pair_changed_counter = BPETokenizer._merge_pair_token_counts(token_bytes_counts, pair2tokens, most_frequent_pair)
             pair_counts.update(pair_changed_counter)
             pair_counts.pop(most_frequent_pair)
         logger.info(f"Finsished Merging in {time.time() - time_sta_merging:.2f} seconds, vocab size: {len(self.vocab)}\n")
@@ -54,25 +54,30 @@ class BPETokenizer:
         pair2tokens.pop(pair, None)
         for token in token_with_pair:
             token_bytes, count = token_bytes_counts[token]
+            token_pairs = set([(token_bytes[idx], token_bytes[idx + 1]) for idx in range(len(token_bytes) - 1)])
             if len(token_bytes) > 1:
                 idx = 0
                 while idx < len(token_bytes) - 1:
                     if (token_bytes[idx], token_bytes[idx + 1]) == pair:
                         if idx > 0:
                             pair_frequency_change_counter[(token_bytes[idx - 1], token_bytes[idx])] -= count
-                            pair2tokens[(token_bytes[idx - 1], token_bytes[idx])].remove(token)
                             pair_frequency_change_counter[(token_bytes[idx - 1], token_bytes[idx] + token_bytes[idx + 1])] += count
                             pair2tokens[(token_bytes[idx - 1], token_bytes[idx] + token_bytes[idx + 1])].add(token)
                         if idx < len(token_bytes) - 2:
                             pair_frequency_change_counter[(token_bytes[idx + 1], token_bytes[idx + 2])] -= count
-                            pair2tokens[(token_bytes[idx + 1], token_bytes[idx + 2])].remove(token)
                             pair_frequency_change_counter[(token_bytes[idx] + token_bytes[idx + 1], token_bytes[idx + 2])] += count
                             pair2tokens[(token_bytes[idx] + token_bytes[idx + 1], token_bytes[idx + 2])].add(token)
                         token_bytes[idx] = token_bytes[idx] + token_bytes.pop(idx + 1)
                     idx += 1
-        for pair in list(pair2tokens.keys()):
-            if not pair2tokens[pair]:
-                pair2tokens.pop(pair)
+            token_pairs_changed = set([(token_bytes[idx], token_bytes[idx + 1]) for idx in range(len(token_bytes) - 1)])
+            pairs_deleted = token_pairs - token_pairs_changed
+            for pair_deleted in pairs_deleted:
+                if token in pair2tokens[pair_deleted]:
+                    pair2tokens[pair_deleted].remove(token)
+
+        for idx in list(pair2tokens.keys()):
+            if not pair2tokens[idx]:
+                pair2tokens.pop(idx)
         return pair_frequency_change_counter
                     
     
@@ -100,11 +105,11 @@ class BPETokenizer:
     @staticmethod
     def pretokenize(input_path:str, pattern: str, special_tokens: list[str] | None = None) -> Counter:
         if not special_tokens:
-            special_tokens = [r'<endoftext>']
+            special_tokens = [r'<|endoftext|>']
         token_counts = Counter()
         with open(input_path, 'rb') as f:
             boundaries = find_chunk_boundaries(
-                f, 64, b"<endoftext>"
+                f, 64, b"<|endoftext|>"
             )
         print("Pretokenizing without parallel... \n")
         for sta, end in tqdm(zip(boundaries[:-1], boundaries[1:])):
