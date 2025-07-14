@@ -2,6 +2,16 @@ from cs336_basics import BPETokenizer
 from pathlib import Path
 import time
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO, 
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    filename="train_owt_train.log",
+    filemode="w",
+)
 
 DATA_PATH = str((Path(__file__).parent / '../../data/owt_train.txt').resolve())
 bpe_TinyStories = BPETokenizer(32000, [r'<|endoftext|>'])

@@ -9,11 +9,11 @@ logging.basicConfig(
     level=logging.INFO, 
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    filename="train_TinyStories_valid.log",
+    filename="train_TinyStories_train.log",
     filemode="w",
 )
 
-DATA_PATH = str((Path(__file__).parent / '../../data/TinyStoriesV2-GPT4-valid.txt').resolve())
+DATA_PATH = str((Path(__file__).parent / '../../data/TinyStoriesV2-GPT4-train.txt').resolve())
 bpe_TinyStories = BPETokenizer(10000, [r'<|endoftext|>'])
 start = time.time()
 bpe_TinyStories.train(DATA_PATH, parallel=True)
