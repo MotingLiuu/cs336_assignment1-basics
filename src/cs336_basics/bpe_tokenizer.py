@@ -6,7 +6,9 @@ import time
 import logging
 import regex as re
 import os
+import json
 import heapq
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +84,38 @@ class BPETokenizer:
                 pair_counts.pop(pair, None)
         logger.info(f"Finsished Merging in {time.time() - time_sta_merging:.2f} seconds, vocab size: {len(self.vocab)}\n")
         
-
+    @classmethod
+    def from_pretrained(cls, vocab_path: str, merges_path: str, special_tokens: list[str] | None = None):
+        '''
+        Loads a Tokenizer from pretrained vocab and merges json files.
+        '''
+        tokenizer = cls(0, special_tokens)
+        with open(vocab_path, 'r', encoding='utf-8') as f:
+            tokenizer.vocab = json.load(f)
+            tokenizer.vocab = {int(idx): base64.b64decode(token_bytes.encode('utf-8')) for idx, token_bytes in tokenizer.vocab.items()}
+        with open(merges_path, 'r', encoding='utf-8') as f:
+            tokenizer.merges = json.load(f)
+            tokenizer.merges = [(base64.b64decode(left.encode('utf-8')), base64.b64decode(right.encode('utf-8'))) for left, right in tokenizer.merges]
+        tokenizer.vocab_size = len(tokenizer.vocab)
+        
+        return tokenizer
+    
+    @classmethod
+    def from_dict_list(cls, vocab: dict[int, bytes], merges: list[tuple[bytes, bytes]], special_tokens: list[str]):
+        '''
+        Loads a Tokenizer from a dict of vocab and a list of merges.
+        '''
+        tokenizer = cls(0, special_tokens)
+        tokenizer.vocab = vocab
+        tokenizer.merges = merges
+        tokenizer.vocab_size = len(tokenizer.vocab)
+        
+        return tokenizer
+    
+    
+        
+        
+        
     @staticmethod
     def _merge_pair_token_counts(token_bytes_counts: dict[str, tuple[list[bytes], int]], pair2tokens: dict[tuple[bytes], set[str]], pair: tuple[bytes]) -> Counter[tuple[bytes]]:
         '''
