@@ -3,6 +3,7 @@ from pathlib import Path
 import time
 import json
 import logging
+import base64
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -20,11 +21,11 @@ bpe_TinyStories.train(DATA_PATH, parallel=True)
 end = time.time()
 
 vocab_to_save = {
-    idx: token_bytes.decode('utf-8', errors='replace')
+    idx: base64.b64encode(token_bytes).decode('utf-8')
     for idx, token_bytes in bpe_TinyStories.vocab.items()
 }
 
-merge_to_save = [(left.decode('utf-8', errors='replace'), right.decode('utf-8', errors='replace')) for left, right in bpe_TinyStories.merges]
+merge_to_save = [(base64.b64encode(left).decode('utf-8'), base64.b64encode(right).decode('utf-8')) for left, right in bpe_TinyStories.merges]
 
 with open('vocab_TinyStories.json', 'w', encoding='utf-8') as f:
     json.dump(vocab_to_save, f, ensure_ascii=False, indent=2)
