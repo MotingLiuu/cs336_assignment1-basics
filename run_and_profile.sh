@@ -3,7 +3,7 @@
 # Default script to run
 SCRIPT_PATH="experiments/bpe_train_TinyStories.py"
 # Default output report (文本)
-REPORT_PATH="scalene_profile_cputime_TinyStories_valid_vocab_10000_cpu_without_pop.html"
+REPORT_PATH="scalene_profile_cputime_TinyStories_train_vocab_10000_cpu_without_pop.html"
 
 # Usage message
 usage() {
@@ -28,5 +28,5 @@ fi
 
 # Run the profiler (纯文本模式，没有 --html)
 echo "📊 Profiling $SCRIPT_PATH..."
-PYTHONPATH=. scalene --html --profile-all --cpu-only --outfile "$REPORT_PATH" "$SCRIPT_PATH"
+PYTHONPATH=. scalene --html --profile-all --cpu-only --profile-exclude lib/python3 --outfile "$REPORT_PATH" "$SCRIPT_PATH"
 echo "✅ Done. Report saved to $REPORT_PATH"
