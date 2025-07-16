@@ -24,9 +24,14 @@ vocab_to_save = {
     for idx, token_bytes in bpe_TinyStories.vocab.items()
 }
 
+merge_to_save = [(left.decode('utf-8', errors='replace'), right.decode('utf-8', errors='replace')) for left, right in bpe_TinyStories.merges]
+
 with open('vocab_TinyStories.json', 'w', encoding='utf-8') as f:
     json.dump(vocab_to_save, f, ensure_ascii=False, indent=2)
 
+with open('merges_TinyStories.json', 'w', encoding='utf-8') as f:
+    json.dump(merge_to_save, f, ensure_ascii=False, indent=2)
+    
 longest_tokens = sorted(
     bpe_TinyStories.vocab.items(),
     key=lambda x: len(x[1]),
