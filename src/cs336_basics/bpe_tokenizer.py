@@ -13,9 +13,6 @@ logger = logging.getLogger(__name__)
 class ReversePair:
     def __init__(self, pair: tuple[bytes, bytes]):
         self.pair = pair
-        
-    def __init__(self, pair):
-        self.pair = pair
 
     def __lt__(self, other):
         return self.pair > other.pair
