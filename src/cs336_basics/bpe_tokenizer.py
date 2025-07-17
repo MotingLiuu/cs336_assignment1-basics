@@ -101,7 +101,13 @@ class BPETokenizer:
             tokenizer.merges = [(base64.b64decode(left.encode('utf-8')), base64.b64decode(right.encode('utf-8'))) for left, right in tokenizer.merges]
         tokenizer.vocab_size = len(tokenizer.vocab)
         tokenizer.token2id = {token: idx for idx, token in tokenizer.vocab.items()}
-        
+        special_tokens = [tok.encode('utf-8') for tok in special_tokens] if special_tokens else []
+        for tok in special_tokens:
+            if not tokenizer.token2id.get(tok):
+                idx = len(tokenizer.vocab)
+                tokenizer.vocab[idx] = tok
+                tokenizer.token2id[tok] = idx
+                
         return tokenizer
     
     @classmethod
@@ -114,7 +120,13 @@ class BPETokenizer:
         tokenizer.merges = merges
         tokenizer.vocab_size = len(tokenizer.vocab)
         tokenizer.token2id = {token: idx for idx, token in tokenizer.vocab.items()}
-
+        special_tokens = [tok.encode('utf-8') for tok in special_tokens] if special_tokens else []
+        for tok in special_tokens:
+            if not tokenizer.token2id.get(tok):
+                idx = len(tokenizer.vocab)
+                tokenizer.vocab[idx] = tok
+                tokenizer.token2id[tok] = idx
+                
         return tokenizer
       
     @staticmethod
@@ -250,7 +262,8 @@ class BPETokenizer:
         tokens = []
         prog = re.compile(self.PAT)
         sta, end = 0, len(text) - 1
-        for match in re.finditer("|".join(map(re.escape, self.special_tokens)), text):
+        special_tokens_rearranged = sorted(self.special_tokens, key = lambda x: -len(x))
+        for match in re.finditer("|".join(map(re.escape, special_tokens_rearranged)), text):
             end = match.start()
             tokens.extend(prog.findall(text[sta:end]))
             tokens.append(match.group())
