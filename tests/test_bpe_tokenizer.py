@@ -4,11 +4,13 @@ import logging
 from collections import defaultdict, Counter
 import pytest
 import cs336_basics
+from pathlib import Path
 
+logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO, 
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 @pytest.fixture
@@ -208,4 +210,116 @@ def test_merge_pair_token_counts(setup_token_bytes_counts, setup_pair2tokens):
     assert token_bytes_counts == expected_token_bytes_counts, "Token bytes counts do not match expected values after merging."
     assert pair2tokens == expected_pair2tokens, "Pair to tokens mapping does not match expected values after merging."
     
+@pytest.fixture
+def setup_bpe_tokenizer():
+    """
+    Fixture to set up a BPETokenizer instance for testing.
+    """
+    vocab = {
+        0: b' ',
+        1: b'a',
+        2: b'c',
+        3: b'e',
+        4: b'h',
+        5: b't',
+        6: b'th',
+        7: b' c', 
+        8: b' a', 
+        9: b'the', 
+        10: b' at' 
+    }
     
+    merges = [
+        (b't', b'h'),  
+        (b' ', b'c'),    
+        (b' ', b'a'),    
+        (b'th', b'e'),  
+        (b' a', b't')
+    ]
+    
+    special_tokens = ['<|endoftext|>']
+
+    return cs336_basics.BPETokenizer.from_dict_list(vocab, merges, special_tokens)
+
+@pytest.fixture
+def setup_text():
+    return "This is a test text for BPE tokenizer to test the functionality of encoding and decoding"
+
+def test_from_pretrained():
+    """
+    Test the from_pretrained method of BPETokenizer.
+    """
+    vocab_path = str(Path(__file__).parent / "../experiments/vocab_TinyStories.json")
+    merges_path = str(Path(__file__).parent / "../experiments/merges_TinyStories.json")
+
+    # Assuming the files exist and are correctly formatted
+    tokenizer = cs336_basics.BPETokenizer.from_pretrained(vocab_path, merges_path, None)
+    
+    assert isinstance(tokenizer, cs336_basics.BPETokenizer), "The returned object is not an instance of BPETokenizer."
+    assert len(tokenizer.vocab) > 0, "The vocabulary should not be empty."
+    for idx in range(10):
+        logging.info(f"Token {idx}: {tokenizer.vocab.get(idx, 'Not Found')}")
+    assert len(tokenizer.merges) > 0, "The merges should not be empty."
+    for idx in range(10):
+        logging.info(f"Merge left:{tokenizer.merges[idx][0]}, right: {tokenizer.merges[idx][1]}")
+
+def test_encode(setup_text):
+    """
+    Test the encode method of BPETokenizer.
+    """
+    pass
+
+def test_token_merge():
+    """
+    Test the _token_merge method of BPETokenizer.
+    """
+    token = [b'h', b'e', b'l', b'l', b'o', b'l', b'o']
+    merge = (b'l', b'o')
+    expected_result = [b'h', b'e', b'l', b'lo', b'lo']
+    cs336_basics.BPETokenizer._token_merge(token, merge)
+    assert token == expected_result, f"Expected {expected_result}, but got {token}"
+    
+def test_token_2_ids(setup_bpe_tokenizer):
+    """
+    Test the _token_2_ids method of BPETokenizer.
+    """
+    tokenizer = setup_bpe_tokenizer
+    token1, token2, token3 = b"the", b" cat", b" ate"
+    token1_ids = tokenizer.token_2_ids(token1)
+    token2_ids = tokenizer.token_2_ids(token2)
+    token3_ids = tokenizer.token_2_ids(token3)
+    assert token1_ids == [9], f"Expected [9], but got {token1_ids}"
+    assert token2_ids == [7, 1, 5], f"Expected [7], but got {token2_ids}"
+    assert token3_ids == [10, 3], f"Expected [10], but got {token3_ids}"
+    
+def test_encode_tokens(setup_bpe_tokenizer):
+    """
+    Test the encode_tokens method of BPETokenizer.
+    """
+    tokenizer = setup_bpe_tokenizer
+    tokens = ['the', ' cat', ' ate']
+    expected_ids = [9, 7, 1, 5, 10, 3]
+    encoded_ids = tokenizer._encode_tokens(tokens)
+    assert encoded_ids == expected_ids, f"Expected {expected_ids}, but got {encoded_ids}"
+    
+def test_encode(setup_bpe_tokenizer):
+    """
+    Test the encode method of BPETokenizer.
+    """
+    tokenizer = setup_bpe_tokenizer
+    text = "the cat ate"
+    expected_ids = [9, 7, 1, 5, 10, 3]
+    encoded_ids = tokenizer.encode(text)
+    assert encoded_ids == expected_ids, f"Expected {expected_ids}, but got {encoded_ids}"
+    
+def test_encode_iterable(setup_bpe_tokenizer):
+    """
+    Test the encode_iterable method of BPETokenizer.
+    """
+    tokenizer = setup_bpe_tokenizer
+    texts = ["the cat ate", "the cat ate", "the cat ate"]
+    expected_ids = [9, 7, 1, 5, 10, 3, 9, 7, 1, 5, 10, 3, 9, 7, 1, 5, 10, 3]
+    encoded_iterator = tokenizer.encode_iterable(texts)
+    for value, expected_value in zip(encoded_iterator, expected_ids):
+        assert value == expected_value, f"Expected {expected_value}, but got {value}"
+        
