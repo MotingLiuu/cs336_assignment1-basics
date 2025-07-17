@@ -8,7 +8,7 @@ from jaxtyping import Float, Int
 import numpy.typing as npt
 import torch
 from torch import Tensor
-
+from cs336_basics import BPETokenizer
 import logging
 logger = logging.getLogger(__name__)
 
@@ -559,7 +559,8 @@ def get_tokenizer(
     Returns:
         A BPE tokenizer that uses the provided vocab, merges, and special tokens.
     """
-    raise NotImplementedError
+    return BPETokenizer.from_dict_list(vocab, merges,  special_tokens)
+    
 
 
 def run_train_bpe(
