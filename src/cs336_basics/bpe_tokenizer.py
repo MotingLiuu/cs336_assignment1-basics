@@ -1,6 +1,7 @@
 from .utils import find_chunk_boundaries
 from collections import Counter, defaultdict
 from multiprocessing import Pool
+from typing import Iterable, Iterator
 from tqdm import tqdm
 import time
 import logging
@@ -39,6 +40,7 @@ class BPETokenizer:
         }
         self.merges = []
         self.PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+        self.token2id = {}
     
     def train(self, input_path: str, parallel: bool = True):
         logger.info(f"Started Pretokenization: {input_path} (parallel={parallel}).\n")
@@ -82,6 +84,7 @@ class BPETokenizer:
                     pairs_to_remove.append(pair)
             for pair in pairs_to_remove:
                 pair_counts.pop(pair, None)
+        self.token2id = {token: idx for idx, token in self.vocab.items()}
         logger.info(f"Finsished Merging in {time.time() - time_sta_merging:.2f} seconds, vocab size: {len(self.vocab)}\n")
         
     @classmethod
@@ -97,6 +100,7 @@ class BPETokenizer:
             tokenizer.merges = json.load(f)
             tokenizer.merges = [(base64.b64decode(left.encode('utf-8')), base64.b64decode(right.encode('utf-8'))) for left, right in tokenizer.merges]
         tokenizer.vocab_size = len(tokenizer.vocab)
+        tokenizer.token2id = {token: idx for idx, token in tokenizer.vocab.items()}
         
         return tokenizer
     
@@ -109,13 +113,10 @@ class BPETokenizer:
         tokenizer.vocab = vocab
         tokenizer.merges = merges
         tokenizer.vocab_size = len(tokenizer.vocab)
-        
+        tokenizer.token2id = {token: idx for idx, token in tokenizer.vocab.items()}
+
         return tokenizer
-    
-    
-        
-        
-        
+      
     @staticmethod
     def _merge_pair_token_counts(token_bytes_counts: dict[str, tuple[list[bytes], int]], pair2tokens: dict[tuple[bytes], set[str]], pair: tuple[bytes]) -> Counter[tuple[bytes]]:
         '''
@@ -241,7 +242,80 @@ class BPETokenizer:
             f.seek(sta)
             chunk = f.read(end - sta)
         return BPETokenizer.pretokenize_binary(chunk, pattern, special_tokens)
-                
+    
+    def encode(self, text: str) -> list[int]:
+        """
+        Encode an input text into a sequence of token IDs.
+        """
+        tokens = []
+        prog = re.compile(self.PAT)
+        sta, end = 0, len(text) - 1
+        for match in re.finditer("|".join(map(re.escape, self.special_tokens)), text):
+            end = match.start()
+            tokens.extend(prog.findall(text[sta:end]))
+            tokens.append(match.group())
+            sta = match.end()
+        tokens.extend(prog.findall(text[sta:]))
+        return self._encode_tokens(tokens)
+    
+    def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
+        """
+        Encode an iterable of strings into a Iterator of token IDs.
+        For processing large datasets without loading everything into memory at once.
+        """
+        for text in iterable:
+            yield from self.encode(text)
+    
+    def decode(self, ids: list[int]) -> str:
+        """
+        Decode a sequence of token IDs back into a string.
+        """
+        tokens = [self.vocab[id] for id in ids]
+        return b''.join(tokens).decode('utf-8', errors='ignore')
+            
+    
+    def _encode_tokens(self, tokens:list[str]) -> list[int]:
+        """
+        Encode a list of tokens into a sequence of token IDs
+        """
+        tokens = [token.encode('utf-8') for token in tokens]
+        token_ids = []
+        for token in tokens:
+            token_ids.extend(self.token_2_ids(token))
+        return token_ids
+            
+    def token_2_ids(self, token: bytes) -> list[int]:
+        """
+        Convert a token(bytes) to a list of token IDs.
+        """
+        if self.token2id.get(token):
+            return [self.token2id[token]]
+        else:
+            tokens = [bytes([byte]) for byte in token]
+            token_ids = []
+            for merge in self.merges:
+                if len(tokens) == 1:
+                    break
+                BPETokenizer._token_merge(tokens, merge)
+            for tok in tokens:
+                if self.token2id.get(tok):
+                    token_ids.append(self.token2id[tok])
+                else:
+                    logger.warning(f"Token {tok} not found in vocabulary.")
+        return token_ids
+
+    @classmethod
+    def _token_merge(cls, token: list[bytes], merge: tuple[bytes, bytes]) -> list[bytes]:
+        """
+        Merge a token with a merge pair.
+        """
+        idx = 0
+        while idx < len(token) - 1:
+            if (token[idx], token[idx + 1]) == merge:
+                token[idx] = token[idx] + token.pop(idx + 1)
+            idx += 1
+
+
 if __name__ == '__main__':
     
     def test_pretokenize_parallel():
