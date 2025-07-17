@@ -34,6 +34,7 @@ class BPETokenizer:
     def __init__(self, vocab_size: int, special_tokens: list[str] | None = None):
         self.vocab_size = vocab_size
         self.special_tokens = special_tokens if special_tokens else []
+        self.special_tokens.append("<|endoftext|>")
         self.vocab = {
             **{idx: special_token.encode('utf-8') for idx, special_token in enumerate(self.special_tokens)},
             **{num + len(self.special_tokens): bytes([num]) for num in range(256)}
@@ -200,7 +201,7 @@ class BPETokenizer:
             boundaries = find_chunk_boundaries(
                 f, 64, b"<|endoftext|>"
             )
-        print("Pretokenizing without parallel... \n")
+        logging.info("Pretokenizing without parallel... \n")
         for sta, end in tqdm(zip(boundaries[:-1], boundaries[1:])):
             with open(input_path, 'rb') as f:
                 f.seek(sta)
@@ -254,6 +255,7 @@ class BPETokenizer:
             f.seek(sta)
             chunk = f.read(end - sta)
         return BPETokenizer.pretokenize_binary(chunk, pattern, special_tokens)
+    
     
     def encode(self, text: str) -> list[int]:
         """
@@ -311,7 +313,7 @@ class BPETokenizer:
                     break
                 BPETokenizer._token_merge(tokens, merge)
             for tok in tokens:
-                if self.token2id.get(tok):
+                if self.token2id.get(tok) is not None:
                     token_ids.append(self.token2id[tok])
                 else:
                     logger.warning(f"Token {tok} not found in vocabulary.")
@@ -329,73 +331,3 @@ class BPETokenizer:
             idx += 1
 
 
-if __name__ == '__main__':
-    
-    def test_pretokenize_parallel():
-        DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/corpus.en')
-        DATA_PATH = os.path.abspath(DATA_PATH)
-        print(BPETokenizer.pretokenize_parallel(DATA_PATH, r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""))
-    
-    # ===
-    # Test of BPETokenizer.pretokenize
-    # ===
-    def test_pretokenize():
-        DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/corpus.en')
-        DATA_PATH = os.path.abspath(DATA_PATH)
-        print(BPETokenizer.pretokenize(DATA_PATH, r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""))    
-        
-    # ===
-    # Test of BPETokenizer._merge_pair_token_counts
-    # ===
-    def test_merge_pair_token_counts():
-        test_dict = {
-            'a': ([bytes([1]), bytes([2]), bytes([5]), bytes([3]), bytes([4]), bytes([4])], 1),
-            'b': ([bytes([1]), bytes([2]), bytes([2]), bytes([3]), bytes([4])], 2),
-            'c': ([bytes([5]), bytes([1]), bytes([2]), bytes([6]), bytes([3]), bytes([4])], 3),
-            'd': ([bytes([7]), bytes([1]), bytes([2]), bytes([8]), bytes([3]), bytes([4])], 2),
-            'e': ([bytes([1]), bytes([2]), bytes([3]), bytes([4]), bytes([9])], 1),
-            'f': ([bytes([10]), bytes([1]), bytes([2]), bytes([3]), bytes([4])], 4),
-            }
-        pair = (bytes([2]), bytes([3])) 
-        pair_changed_counter = BPETokenizer._merge_pair_token_counts(test_dict, pair)
-        print(pair_changed_counter)
-        print(test_dict)
-    
-    
-    # ===
-    # Test of BPETokenizer._pair_frequency
-    # ===
-    def test_pair_frequency():
-        test_dict = {
-            'a': ([bytes([1]), bytes([2]), bytes([5]), bytes([3]), bytes([4]), bytes([4])], 1),
-            'b': ([bytes([1]), bytes([2]), bytes([2]), bytes([3]), bytes([4])], 2),
-            'c': ([bytes([5]), bytes([1]), bytes([2]), bytes([6]), bytes([3]), bytes([4])], 3),
-            'd': ([bytes([7]), bytes([1]), bytes([2]), bytes([8]), bytes([3]), bytes([4])], 2),
-            'e': ([bytes([1]), bytes([2]), bytes([3]), bytes([4]), bytes([9])], 1),
-            'f': ([bytes([10]), bytes([1]), bytes([2]), bytes([3]), bytes([4])], 4),
-            }
-        BPE = BPETokenizer(500, [r'<|endoftext|>'])
-        DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/corpus.en')
-        DATA_PATH = os.path.abspath(DATA_PATH)
-        token_counts = BPETokenizer.pretokenize_parallel(DATA_PATH, BPE.PAT)
-        token_counts = BPETokenizer._reform_tokens_counts(token_counts)
-        pair_counts = BPETokenizer._pair_frequency(token_counts)
-        print(pair_counts)
-
-    
-    # ===
-    # Test of BPETokeinzer.train
-    # ===
-    def test_BPE_train():
-        BPE = BPETokenizer(500, [r'<|endoftext|>'])
-        DATA_PATH = os.path.join(os.path.dirname(__file__), '../../data/TinyStoriesV2-GPT4-valid.txt')
-        DATA_PATH = os.path.abspath(DATA_PATH)
-        BPE.train(DATA_PATH)
-        print(BPE.vocab)
-        print(BPE.merges)
-    
-    test_pretokenize()
-    #test_pretokenize_parallel()
-    #test_merge_pair_token_counts()
-    #test_pair_frequency()
-    #test_BPE_train()
