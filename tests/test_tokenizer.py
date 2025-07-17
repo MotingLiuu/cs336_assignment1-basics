@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import resource
 import sys
@@ -11,6 +12,13 @@ import tiktoken
 
 from .adapters import get_tokenizer
 from .common import FIXTURES_PATH, gpt2_bytes_to_unicode
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO, 
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
 
 VOCAB_PATH = FIXTURES_PATH / "gpt2_vocab.json"
 MERGES_PATH = FIXTURES_PATH / "gpt2_merges.txt"
@@ -290,7 +298,6 @@ def test_address_matches_tiktoken():
     assert tokenizer.decode(ids) == corpus_contents
     assert reference_tokenizer.decode(reference_ids) == corpus_contents
 
-
 def test_german_roundtrip():
     tokenizer = get_tokenizer_from_vocab_merges_path(
         vocab_path=VOCAB_PATH,
@@ -330,7 +337,7 @@ def test_tinystories_sample_roundtrip():
 
     ids = tokenizer.encode(corpus_contents)
     assert tokenizer.decode(ids) == corpus_contents
-
+    
 
 def test_tinystories_matches_tiktoken():
     reference_tokenizer = tiktoken.get_encoding("gpt2")
