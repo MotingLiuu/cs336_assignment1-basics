@@ -5,6 +5,14 @@ from einops import rearrange, einsum
 from math import sqrt
 from jaxtyping import Float, Int
 from torch import Tensor
+from enum import Enum
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.DEBUG, 
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 class Linear(nn.Module):
     def __init__(self, in_features: int, out_features: int, bias: bool = True, device: torch.device | None = None, dtype: torch.dtype | None = None):
@@ -111,7 +119,7 @@ class RotaryPositionalEmbedding(nn.Module):
         self.register_buffer("cos_cached", cos_cached, persistent=False)
         self.register_buffer("sin_cached", sin_cached, persistent=False)
     
-    def forward(self, x: Float[Tensor, "... seq_len d_k"]) -> Float[Tensor, "..."]:
+    def forward(self, x: Float[Tensor, "... seq_len d_k"]) -> Float[Tensor, "... seq_len d_k"]:
         seq_len = x.shape[-2] # the shape of x is (..., length, d_k), usually b, length, d_k
         if self.buffer:
             cos = self.cos_cached[:seq_len]
@@ -123,12 +131,46 @@ class RotaryPositionalEmbedding(nn.Module):
             cos = torch.cos(theta_cached)
             sin = torch.sin(theta_cached)
         x_reshaped = rearrange(x, "... (d2 c) -> ... d2 c", c=2)
+        logging.debug(f"x_reshaped shape: {x_reshaped.shape}, cos shape: {cos.shape}, sin shape: {sin.shape}")
         x_0, x_1 = x_reshaped[..., 0], x_reshaped[..., 1]
         x_0_rotated = x_0 * cos - x_1 * sin
         x_1_rotated = x_0 * sin + x_1 * cos
         x_rotated = rearrange(torch.stack((x_0_rotated, x_1_rotated), dim=-1), "... d2 c -> ... (d2 c)")
         return x_rotated
     
+
+class MultiHeadAttention(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, device: torch.device | None = None, dtype: torch.dtype | None = None):
+        super().__init__()
+        self.device = device
+        self.dtype = dtype
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_k = d_model // num_heads
+        self.d_v = d_model // num_heads
+        self.linear_q = Linear(d_model, self.d_k * self.num_heads, bias=False, device=device, dtype=dtype)
+        self.linear_k = Linear(d_model, self.d_k * self.num_heads, bias=False, device=device, dtype=dtype)
+        self.linear_v = Linear(d_model, self.d_v * self.num_heads, bias=False, device=device, dtype=dtype)
+        self.linear_out = Linear(d_model, d_model, bias=False, device=device, dtype=dtype)
+    
+    def reset_paramerters(self):
+        pass
+    
+    def forward(
+        self, x: Float[Tensor, "... seq_len d_model"],
+        mask: Float[Tensor, "... seq_len seq_len"] | None = None,
+        ROPE: RotaryPositionalEmbedding | None = None
+        ) -> Float[Tensor, "... seq_len d_model"]:
+        Q = rearrange(self.linear_q(x), "... seq_len (num_heads d_k) -> ... num_heads seq_len d_k", num_heads=self.num_heads)
+        K = rearrange(self.linear_k(x), "... seq_len (num_heads d_k) -> ... num_heads seq_len d_k", num_heads=self.num_heads)
+        V = rearrange(self.linear_v(x), "... seq_len (num_heads d_v) -> ... num_heads seq_len d_v", num_heads=self.num_heads)
+        logging.debug(f"Q shape: {Q.shape}, K shape: {K.shape}, V shape: {V.shape}")
+        if isinstance(ROPE, RotaryPositionalEmbedding):
+            Q = ROPE(Q)
+            K = ROPE(K)
+        result = scaled_dot_product_attention(Q, K, V, mask=mask)
+        result = rearrange(result, "... num_heads seq_len d_v -> ... seq_len (num_heads d_v)")
+        return self.linear_out(result)
 
 def scaled_dot_product_attention(
     Q: Float[Tensor, "... seq_len d_k"],
@@ -140,14 +182,14 @@ def scaled_dot_product_attention(
     dot_result = einsum(Q, K, "... seq_len0 d_k, ... seq_len1 d_k -> ... seq_len0 seq_len1") / sqrt(d_k)
     if mask is not None:
         dot_result = dot_result.masked_fill_(mask == False, float("-inf"))
-    return einsum(Softmax(dot_result), V, "... seq_len0 seq_len1, ... seq_len1 d_v -> ... seq_len0 d_v")
+    return einsum(softmax(dot_result), V, "... seq_len0 seq_len1, ... seq_len1 d_v -> ... seq_len0 d_v")
     
     
 def SiLU(x: Float[Tensor, "..."]) -> Float[Tensor, "..."]:
     return x * torch.sigmoid(x)
 
 
-def Softmax(x: Float[Tensor, "..."], dim: int = -1) -> Float[Tensor, "..."]:
+def softmax(x: Float[Tensor, "..."], dim: int = -1) -> Float[Tensor, "..."]:
     max_value, _ = torch.max(x, dim=dim, keepdim=True)
     x = x - max_value
     exp_x = torch.exp(x)
