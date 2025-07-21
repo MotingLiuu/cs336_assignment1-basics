@@ -150,7 +150,17 @@ def run_multihead_self_attention(
         Float[Tensor, " ... sequence_length d_out"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    seq_len = in_features.shape[-2]
+    casual_mask = torch.tril(torch.ones(seq_len, seq_len, device=in_features.device, dtype=in_features.dtype), diagonal=0)
+    loaded_state_dict = {
+        "linear_q.weights": q_proj_weight,
+        "linear_k.weights": k_proj_weight,
+        "linear_v.weights": v_proj_weight,
+        "linear_out.weights": o_proj_weight
+    }
+    MLA = model.MultiHeadAttention(d_model, num_heads, device=in_features.device, dtype=in_features.dtype)
+    MLA.load_state_dict(loaded_state_dict)
+    return MLA(in_features, mask=casual_mask)
 
 
 def run_multihead_self_attention_with_rope(
@@ -190,8 +200,19 @@ def run_multihead_self_attention_with_rope(
         Float[Tensor, " ... sequence_length d_out"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
-
+    d_k = d_model // num_heads
+    seq_len = in_features.shape[-2]
+    rope_layer = model.RotaryPositionalEmbedding(theta, d_k, max_seq_len, buffer=True)
+    loaded_state_dict = {
+        "linear_q.weights": q_proj_weight,
+        "linear_k.weights": k_proj_weight,
+        "linear_v.weights": v_proj_weight,
+        "linear_out.weights": o_proj_weight
+    }
+    MLA = model.MultiHeadAttention(d_model, num_heads)
+    MLA.load_state_dict(loaded_state_dict)
+    causal_mask = torch.tril(torch.ones(seq_len, seq_len, device=in_features.device, dtype=in_features.dtype), diagonal=0)
+    return MLA(in_features, mask=causal_mask, ROPE=rope_layer)
 
 def run_rope(
     d_k: int,
@@ -447,7 +468,7 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         Float[Tensor, "..."]: Tensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    return model.Softmax(in_features, dim=dim)
+    return model.softmax(in_features, dim=dim)
 
 
 def run_cross_entropy(inputs: Float[Tensor, " batch_size vocab_size"], targets: Int[Tensor, " batch_size"]) -> Float[Tensor, ""]:
