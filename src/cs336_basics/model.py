@@ -171,6 +171,35 @@ class MultiHeadAttention(nn.Module):
         result = scaled_dot_product_attention(Q, K, V, mask=mask)
         result = rearrange(result, "... num_heads seq_len d_v -> ... seq_len (num_heads d_v)")
         return self.linear_out(result)
+    
+    
+class TransformerBlock(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, device: torch.device | None = None, dtype: torch.dtype | None = None):
+        super().__init__()
+        self.device = device
+        self.dtype = dtype
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_ff = d_ff
+        self.attention = MultiHeadAttention(d_model, num_heads, device=device, dtype=dtype)
+        self.norm1 = RMSNorm(d_model, device=device, dtype=dtype)
+        self.ffn = FeedForward(d_model, d_model, d_ff, device=device, dtype=dtype)
+        self.norm2 = RMSNorm(d_model, device=device, dtype=dtype)
+        
+    def reset_parameters(self):
+        pass
+    
+    def forward(self, x: Float[Tensor, "... seq_len d_model"], 
+                mask: Float[Tensor, "... seq_len seq_len"] | None = None, 
+                ROPE: RotaryPositionalEmbedding | None = None) -> Float[Tensor, "... seq_len d_model"]:
+        x1 = self.norm1(x)
+        x1 = self.attention(x1, mask=mask, ROPE=ROPE)
+        x = x + x1
+        x2 = self.norm2(x)
+        x2 = self.ffn(x2)
+        x = x + x2
+        return x
+
 
 def scaled_dot_product_attention(
     Q: Float[Tensor, "... seq_len d_k"],
