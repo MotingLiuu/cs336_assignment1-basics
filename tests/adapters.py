@@ -7,7 +7,7 @@ from jaxtyping import Float, Int
 
 import numpy.typing as npt
 import torch
-from torch import Tensor
+from torch import Tensor, dtype
 from cs336_basics import BPETokenizer
 from cs336_basics import model
 import logging
@@ -306,7 +306,23 @@ def run_transformer_block(
         Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
         running the Transformer block on the input features while using RoPE.
     """
-    raise NotImplementedError
+    seq_len = in_features.shape[-2]
+    transformer_block = model.TransformerBlock(d_model, num_heads, d_ff)
+    loaded_state_dict = {
+        "attention.linear_q.weights": weights["attn.q_proj.weight"],
+        "attention.linear_k.weights": weights["attn.k_proj.weight"],
+        "attention.linear_v.weights": weights["attn.v_proj.weight"],
+        "attention.linear_out.weights": weights["attn.output_proj.weight"],
+        "norm1.scale": weights["ln1.weight"],
+        "ffn.linear1.weights": weights["ffn.w1.weight"],
+        "ffn.linear2.weights": weights["ffn.w2.weight"],
+        "ffn.linear3.weights": weights["ffn.w3.weight"],
+        "norm2.scale": weights["ln2.weight"],
+    }
+    transformer_block.load_state_dict(loaded_state_dict)
+    rope_layer = model.RotaryPositionalEmbedding(theta, d_model // num_heads, max_seq_len, buffer=True)
+    causal_mask = torch.tril(torch.ones(seq_len, seq_len))
+    return transformer_block(in_features, mask=causal_mask, ROPE=rope_layer)
 
 
 def run_transformer_lm(
