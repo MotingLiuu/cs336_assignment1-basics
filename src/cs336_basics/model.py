@@ -21,19 +21,19 @@ class Linear(nn.Module):
         self.dtype = dtype
         self.infeatures = in_features
         self.outfeatures = out_features
-        self.weights = nn.Parameter(torch.empty((out_features, in_features), device=device, dtype=dtype))
+        self.weight = nn.Parameter(torch.empty((out_features, in_features), device=device, dtype=dtype))
         if bias:
             self.bias = nn.Parameter(torch.empty((out_features,)), device=device, dtype=dtype)
         self.reset_parameter()
             
     def reset_parameter(self):
         sigma = sqrt(2.0 / (self.infeatures + self.outfeatures))
-        nn.init.trunc_normal_(self.weights, mean=0.0, std=sigma, a=-3*sigma, b=3*sigma)
+        nn.init.trunc_normal_(self.weight, mean=0.0, std=sigma, a=-3*sigma, b=3*sigma)
         if hasattr(self, "bias"):
             nn.init.zeros_(self.bias)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        output = einsum(self.weights, x, "dout din, ... din -> ... dout")
+        output = einsum(self.weight, x, "dout din, ... din -> ... dout")
         if hasattr(self, "bias"):
             output += self.bias
         return output
@@ -46,13 +46,13 @@ class Embedding(nn.Module):
         self.dtype = dtype
         self.num_embeddings = num_embeddings
         self.embedding_dim = embedding_dim
-        self.weights = nn.Parameter(torch.empty((num_embeddings, embedding_dim), device=device, dtype=dtype))
+        self.weight = nn.Parameter(torch.empty((num_embeddings, embedding_dim), device=device, dtype=dtype))
 
     def reset_parameters(self):
-        nn.init.trunc_normal_(self.weights, mean=0, std=1.0, a=-3.0, b=3.0)
+        nn.init.trunc_normal_(self.weight, mean=0, std=1.0, a=-3.0, b=3.0)
     
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
-        return self.weights[token_ids]
+        return self.weight[token_ids]
     
     
 class RMSNorm(nn.Module):
@@ -62,7 +62,7 @@ class RMSNorm(nn.Module):
         self.dtype = dtype
         self.d_model = d_model
         self.eps = eps
-        self.scale = nn.Parameter(torch.ones((d_model,), device=device, dtype=dtype))
+        self.weight = nn.Parameter(torch.ones((d_model,), device=device, dtype=dtype))
     
     def reset_parameters(self):
         pass
@@ -73,7 +73,7 @@ class RMSNorm(nn.Module):
         x_squared = x.pow(2)
         mean_of_squares = x_squared.mean(dim=-1, keepdim=True)
         rms_val = torch.sqrt(mean_of_squares + self.eps)
-        result = (x / rms_val) * self.scale
+        result = (x / rms_val) * self.weight
         return result.to(in_dtype)
     
 
@@ -85,17 +85,17 @@ class FeedForward(nn.Module):
         self.infeatures = in_features
         self.outfeatures = out_features
         self.inner_features = inner_features
-        self.linear1 = Linear(in_features, inner_features, bias=False, device=device, dtype=dtype)
-        self.linear2 = Linear(inner_features, out_features, bias=False, device=device, dtype=dtype)
-        self.linear3 = Linear(in_features, inner_features, bias=False, device=device, dtype=dtype)
+        self.w1 = Linear(in_features, inner_features, bias=False, device=device, dtype=dtype)
+        self.w2 = Linear(inner_features, out_features, bias=False, device=device, dtype=dtype)
+        self.w3 = Linear(in_features, inner_features, bias=False, device=device, dtype=dtype)
 
     def register_parameter(self):
         pass
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x_3 = self.linear3(x)
-        x_1 = self.linear1(x)
-        return self.linear2(SiLU(x_1) * x_3)
+        x_3 = self.w3(x)
+        x_1 = self.w1(x)
+        return self.w2(SiLU(x_1) * x_3)
     
     
 class RotaryPositionalEmbedding(nn.Module):
@@ -148,10 +148,10 @@ class MultiHeadAttention(nn.Module):
         self.num_heads = num_heads
         self.d_k = d_model // num_heads
         self.d_v = d_model // num_heads
-        self.linear_q = Linear(d_model, self.d_k * self.num_heads, bias=False, device=device, dtype=dtype)
-        self.linear_k = Linear(d_model, self.d_k * self.num_heads, bias=False, device=device, dtype=dtype)
-        self.linear_v = Linear(d_model, self.d_v * self.num_heads, bias=False, device=device, dtype=dtype)
-        self.linear_out = Linear(d_model, d_model, bias=False, device=device, dtype=dtype)
+        self.q_proj = Linear(d_model, self.d_k * self.num_heads, bias=False, device=device, dtype=dtype)
+        self.k_proj = Linear(d_model, self.d_k * self.num_heads, bias=False, device=device, dtype=dtype)
+        self.v_proj = Linear(d_model, self.d_v * self.num_heads, bias=False, device=device, dtype=dtype)
+        self.output_proj = Linear(d_model, d_model, bias=False, device=device, dtype=dtype)
     
     def reset_paramerters(self):
         pass
@@ -161,16 +161,16 @@ class MultiHeadAttention(nn.Module):
         mask: Float[Tensor, "... seq_len seq_len"] | None = None,
         ROPE: RotaryPositionalEmbedding | None = None
         ) -> Float[Tensor, "... seq_len d_model"]:
-        Q = rearrange(self.linear_q(x), "... seq_len (num_heads d_k) -> ... num_heads seq_len d_k", num_heads=self.num_heads)
-        K = rearrange(self.linear_k(x), "... seq_len (num_heads d_k) -> ... num_heads seq_len d_k", num_heads=self.num_heads)
-        V = rearrange(self.linear_v(x), "... seq_len (num_heads d_v) -> ... num_heads seq_len d_v", num_heads=self.num_heads)
+        Q = rearrange(self.q_proj(x), "... seq_len (num_heads d_k) -> ... num_heads seq_len d_k", num_heads=self.num_heads)
+        K = rearrange(self.k_proj(x), "... seq_len (num_heads d_k) -> ... num_heads seq_len d_k", num_heads=self.num_heads)
+        V = rearrange(self.v_proj(x), "... seq_len (num_heads d_v) -> ... num_heads seq_len d_v", num_heads=self.num_heads)
         logging.debug(f"Q shape: {Q.shape}, K shape: {K.shape}, V shape: {V.shape}")
         if isinstance(ROPE, RotaryPositionalEmbedding):
             Q = ROPE(Q)
             K = ROPE(K)
         result = scaled_dot_product_attention(Q, K, V, mask=mask)
         result = rearrange(result, "... num_heads seq_len d_v -> ... seq_len (num_heads d_v)")
-        return self.linear_out(result)
+        return self.output_proj(result)
     
     
 class TransformerBlock(nn.Module):
@@ -181,10 +181,10 @@ class TransformerBlock(nn.Module):
         self.d_model = d_model
         self.num_heads = num_heads
         self.d_ff = d_ff
-        self.attention = MultiHeadAttention(d_model, num_heads, device=device, dtype=dtype)
-        self.norm1 = RMSNorm(d_model, device=device, dtype=dtype)
+        self.attn = MultiHeadAttention(d_model, num_heads, device=device, dtype=dtype)
+        self.ln1 = RMSNorm(d_model, device=device, dtype=dtype)
         self.ffn = FeedForward(d_model, d_model, d_ff, device=device, dtype=dtype)
-        self.norm2 = RMSNorm(d_model, device=device, dtype=dtype)
+        self.ln2 = RMSNorm(d_model, device=device, dtype=dtype)
         
     def reset_parameters(self):
         pass
@@ -192,14 +192,62 @@ class TransformerBlock(nn.Module):
     def forward(self, x: Float[Tensor, "... seq_len d_model"], 
                 mask: Float[Tensor, "... seq_len seq_len"] | None = None, 
                 ROPE: RotaryPositionalEmbedding | None = None) -> Float[Tensor, "... seq_len d_model"]:
-        x1 = self.norm1(x)
-        x1 = self.attention(x1, mask=mask, ROPE=ROPE)
+        x1 = self.ln1(x)
+        x1 = self.attn(x1, mask=mask, ROPE=ROPE)
         x = x + x1
-        x2 = self.norm2(x)
+        x2 = self.ln2(x)
         x2 = self.ffn(x2)
         x = x + x2
         return x
-
+    
+    
+class Transformer(nn.Module):
+    def __init__(
+        self, 
+        d_model: int, 
+        num_heads: int, 
+        d_ff: int, 
+        num_layers: int, 
+        vocab_size: int, 
+        max_seq_len: int,
+        theta: float = 10000.0,
+        device: torch.device | None = None, 
+        dtype: torch.dtype | None = None
+        ): 
+        super().__init__()
+        self.device = device
+        self.dtype = dtype
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_ff = d_ff
+        self.num_layers = num_layers
+        self.vocab_size = vocab_size
+        self.max_seq_len = max_seq_len
+        self.token_embeddings = Embedding(vocab_size, d_model, device=device, dtype=dtype)
+        self.layers = nn.ModuleList([
+            TransformerBlock(d_model, num_heads, d_ff, device=device, dtype=dtype) 
+            for _ in range(num_layers)
+        ])
+        self.ln_final = RMSNorm(d_model, device=device, dtype=dtype)
+        self.lm_head = Linear(d_model, vocab_size, bias=False, device=device, dtype=dtype)
+        self.rope = RotaryPositionalEmbedding(theta, d_model // num_heads, max_seq_len, buffer=True, device=device, dtype=dtype)
+        self.register_buffer(
+            "causal_mask",
+            torch.tril(torch.ones(max_seq_len, max_seq_len, device=device, dtype=dtype)),
+            persistent=False
+        )  
+        
+    def reset_parameters(self):
+        pass
+    
+    def forward(self, x: Int[Tensor, "... seq_len"]) -> Float[Tensor, "... seq_len vocab_size"]:
+        seq_len = x.shape[-1]
+        x = self.token_embeddings(x)
+        for block in self.layers:
+            x = block(x, mask=self.causal_mask[:seq_len, :seq_len], ROPE=self.rope)
+        x = self.ln_final(x)
+        x = self.lm_head(x)
+        return x
 
 def scaled_dot_product_attention(
     Q: Float[Tensor, "... seq_len d_k"],
