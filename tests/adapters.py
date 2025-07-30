@@ -153,10 +153,10 @@ def run_multihead_self_attention(
     seq_len = in_features.shape[-2]
     casual_mask = torch.tril(torch.ones(seq_len, seq_len, device=in_features.device, dtype=in_features.dtype), diagonal=0)
     loaded_state_dict = {
-        "linear_q.weights": q_proj_weight,
-        "linear_k.weights": k_proj_weight,
-        "linear_v.weights": v_proj_weight,
-        "linear_out.weights": o_proj_weight
+        "q_proj.weight": q_proj_weight,
+        "k_proj.weight": k_proj_weight,
+        "v_proj.weight": v_proj_weight,
+        "output_proj.weight": o_proj_weight
     }
     MLA = model.MultiHeadAttention(d_model, num_heads, device=in_features.device, dtype=in_features.dtype)
     MLA.load_state_dict(loaded_state_dict)
@@ -204,10 +204,10 @@ def run_multihead_self_attention_with_rope(
     seq_len = in_features.shape[-2]
     rope_layer = model.RotaryPositionalEmbedding(theta, d_k, max_seq_len, buffer=True)
     loaded_state_dict = {
-        "linear_q.weights": q_proj_weight,
-        "linear_k.weights": k_proj_weight,
-        "linear_v.weights": v_proj_weight,
-        "linear_out.weights": o_proj_weight
+        "q_proj.weight": q_proj_weight,
+        "k_proj.weight": k_proj_weight,
+        "v_proj.weight": v_proj_weight,
+        "output_proj.weight": o_proj_weight
     }
     MLA = model.MultiHeadAttention(d_model, num_heads)
     MLA.load_state_dict(loaded_state_dict)
@@ -309,15 +309,15 @@ def run_transformer_block(
     seq_len = in_features.shape[-2]
     transformer_block = model.TransformerBlock(d_model, num_heads, d_ff)
     loaded_state_dict = {
-        "attention.linear_q.weights": weights["attn.q_proj.weight"],
-        "attention.linear_k.weights": weights["attn.k_proj.weight"],
-        "attention.linear_v.weights": weights["attn.v_proj.weight"],
-        "attention.linear_out.weights": weights["attn.output_proj.weight"],
-        "norm1.scale": weights["ln1.weight"],
-        "ffn.linear1.weights": weights["ffn.w1.weight"],
-        "ffn.linear2.weights": weights["ffn.w2.weight"],
-        "ffn.linear3.weights": weights["ffn.w3.weight"],
-        "norm2.scale": weights["ln2.weight"],
+        "attn.q_proj.weight": weights["attn.q_proj.weight"],
+        "attn.k_proj.weight": weights["attn.k_proj.weight"],
+        "attn.v_proj.weight": weights["attn.v_proj.weight"],
+        "attn.output_proj.weight": weights["attn.output_proj.weight"],
+        "ln1.weight": weights["ln1.weight"],
+        "ffn.w1.weight": weights["ffn.w1.weight"],
+        "ffn.w2.weight": weights["ffn.w2.weight"],
+        "ffn.w3.weight": weights["ffn.w3.weight"],
+        "ln2.weight": weights["ln2.weight"],
     }
     transformer_block.load_state_dict(loaded_state_dict)
     rope_layer = model.RotaryPositionalEmbedding(theta, d_model // num_heads, max_seq_len, buffer=True)
@@ -404,7 +404,17 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    transformer_lm = model.Transformer(
+        d_model=d_model,
+        num_heads=num_heads,
+        d_ff=d_ff,
+        num_layers=num_layers,
+        vocab_size=vocab_size,
+        max_seq_len=context_length,
+        theta=rope_theta,
+    )
+    transformer_lm.load_state_dict(weights)
+    return transformer_lm(in_indices)
 
 
 def run_rmsnorm(
