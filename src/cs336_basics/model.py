@@ -5,7 +5,6 @@ from einops import rearrange, einsum
 from math import sqrt
 from jaxtyping import Float, Int
 from torch import Tensor
-from enum import Enum
 import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -272,3 +271,16 @@ def softmax(x: Float[Tensor, "..."], dim: int = -1) -> Float[Tensor, "..."]:
     exp_x = torch.exp(x)
     sum_exp_x = torch.sum(exp_x, dim=dim, keepdim=True)
     return exp_x / sum_exp_x
+
+def cross_entropy_loss(
+    logits: Float[Tensor, "... vocab_size"],
+    targets: Float[Tensor, "... 1"],
+) -> Float[Tensor, "..."]:
+    max_value, _ = torch.max(logits, dim=-1, keepdim=True)
+    logits = logits - max_value
+    exp_logits = torch.exp(logits)
+    sum_exp_logits = torch.sum(exp_logits, dim=-1, keepdim=True)
+    log_sum_exp_logits = torch.log(sum_exp_logits)
+    loss = - logits.gather(dim=-1, index=targets) + log_sum_exp_logits
+    return loss.mean()
+    
