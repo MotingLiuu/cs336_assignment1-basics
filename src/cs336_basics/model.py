@@ -5,7 +5,12 @@ from einops import rearrange, einsum
 from math import sqrt
 from jaxtyping import Float, Int
 from torch import Tensor
+from typing import Optional
+from collections.abc import Iterable, Callable
 import logging
+import math
+
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG, 
@@ -247,6 +252,29 @@ class Transformer(nn.Module):
         x = self.ln_final(x)
         x = self.lm_head(x)
         return x
+    
+class SGD(torch.optim.Optimizer):
+    def __init__(self, params: Iterable[nn.Parameter], lr: float=1e-3):
+        if lr < 0:
+            raise ValueError(f"Invalid learning rate: {lr}")
+        defaults = {"lr": lr}
+        super().__init__(params, defaults)
+    
+    def step(self, closure: Optional[Callable] = None):
+        loss = None if closure is None else closure()
+        for group in self.param_groups:
+            lr = group["lr"]
+            for p in group["params"]:
+                if p.grad is None:
+                    continue
+                
+                state = self.state[p]
+                t = state.get("t", 0) 
+                grad = p.grad.data
+                p.data -= lr / math.sqrt(t + 1) * grad
+                state["t"] = t + 1
+        return loss
+        
 
 def scaled_dot_product_attention(
     Q: Float[Tensor, "... seq_len d_k"],
