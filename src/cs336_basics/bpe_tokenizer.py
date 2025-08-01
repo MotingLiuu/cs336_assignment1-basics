@@ -42,6 +42,8 @@ class BPETokenizer:
         self.merges = []
         self.PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
         self.token2id = {}
+        self.prog = re.compile(self.PAT)
+        self.special_tokens_rearranged = sorted(self.special_tokens, key = lambda x: -len(x))
     
     def train(self, input_path: str, parallel: bool = True):
         logger.info(f"Started Pretokenization: {input_path} (parallel={parallel}).\n")
@@ -262,15 +264,13 @@ class BPETokenizer:
         Encode an input text into a sequence of token IDs.
         """
         tokens = []
-        prog = re.compile(self.PAT)
         sta, end = 0, len(text) - 1
-        special_tokens_rearranged = sorted(self.special_tokens, key = lambda x: -len(x))
-        for match in re.finditer("|".join(map(re.escape, special_tokens_rearranged)), text):
+        for match in re.finditer("|".join(map(re.escape, self.special_tokens_rearranged)), text):
             end = match.start()
-            tokens.extend(prog.findall(text[sta:end]))
+            tokens.extend(self.prog.findall(text[sta:end]))
             tokens.append(match.group())
             sta = match.end()
-        tokens.extend(prog.findall(text[sta:]))
+        tokens.extend(self.prog.findall(text[sta:]))
         return self._encode_tokens(tokens)
     
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
