@@ -359,3 +359,17 @@ def cross_entropy_loss(
     loss = - logits.gather(dim=-1, index=targets) + log_sum_exp_logits
     return loss.mean()
     
+def cosine_schedule(
+    current_step: int,
+    max_lr: float,
+    min_lr: float,
+    warmup_steps: int,
+    cosine_annealing_steps: int
+) -> float:
+    if current_step < warmup_steps:
+        return max_lr * (current_step / warmup_steps)
+    elif current_step <= cosine_annealing_steps:
+        return min_lr + 0.5 * (max_lr - min_lr) * (1 + math.cos(math.pi * (current_step - warmup_steps) / (cosine_annealing_steps - warmup_steps)))
+    else:
+        return min_lr
+    
