@@ -44,6 +44,7 @@ class BPETokenizer:
         self.token2id = {}
         self.prog = re.compile(self.PAT)
         self.special_tokens_rearranged = sorted(self.special_tokens, key = lambda x: -len(x))
+        self.token2id_buffer = {}
     
     def train(self, input_path: str, parallel: bool = True):
         logger.info(f"Started Pretokenization: {input_path} (parallel={parallel}).\n")
@@ -299,25 +300,39 @@ class BPETokenizer:
             token_ids.extend(self.token_2_ids(token))
         return token_ids
             
+    
     def token_2_ids(self, token: bytes) -> list[int]:
         """
         Convert a token(bytes) to a list of token IDs.
         """
         if self.token2id.get(token):
             return [self.token2id[token]]
+        elif self.token2id_buffer.get(token):
+            return self.token2id_buffer[token]
         else:
             tokens = [bytes([byte]) for byte in token]
             token_ids = []
-            for merge in self.merges:
-                if len(tokens) == 1:
-                    break
-                BPETokenizer._token_merge(tokens, merge)
+            merge_completed = False
+            while merge_completed is False:
+                pairs = [(tokens[i], tokens[i + 1]) for i in range(len(tokens) - 1)]
+                pair_ids = [self.token2id.get(pair[0]+pair[1], -1) for pair in pairs]
+                tmp_ids = [pair_id for pair_id in pair_ids if pair_id != -1]
+                merge_id = min(tmp_ids) if tmp_ids else -1
+                if merge_id == -1:
+                    merge_completed = True
+                else:
+                    merge_completed = False
+                    merge = pairs[pair_ids.index(merge_id)]
+                    BPETokenizer._token_merge(tokens, merge)
             for tok in tokens:
                 if self.token2id.get(tok) is not None:
                     token_ids.append(self.token2id[tok])
                 else:
                     logger.warning(f"Token {tok} not found in vocabulary.")
+        self.token2id_buffer[token] = token_ids
         return token_ids
+                    
+                    
 
     @classmethod
     def _token_merge(cls, token: list[bytes], merge: tuple[bytes, bytes]) -> list[bytes]:
