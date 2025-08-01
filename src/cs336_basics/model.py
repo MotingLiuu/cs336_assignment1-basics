@@ -373,3 +373,17 @@ def cosine_schedule(
     else:
         return min_lr
     
+def gradient_clipping(
+    max_norm: float,
+    parameters: Iterable[nn.Parameter]
+):
+    norm = 0.0
+    for params in parameters:
+        if params.grad is not None:
+            norm += torch.norm(params.grad) ** 2
+    norm = torch.sqrt(norm)
+    if norm > max_norm:
+        for params in parameters:
+            if params.grad is not None:
+                params.grad.data *= max_norm / norm
+    
