@@ -7,6 +7,8 @@ from jaxtyping import Float, Int
 from torch import Tensor
 from typing import Optional
 from collections.abc import Iterable, Callable
+import numpy as np
+import numpy.typing as npt
 import logging
 import math
 
@@ -386,4 +388,20 @@ def gradient_clipping(
         for params in parameters:
             if params.grad is not None:
                 params.grad.data *= max_norm / norm
-    
+ 
+
+def data_loading(
+    dataset_encodedet: npt.NDArray,
+    batch_size: int,
+    context_length: int,
+    device: str = "cpu",
+):
+    length = len(dataset_encodedet)
+    if length < context_length:
+        raise ValueError("The length of the data is less than the context length.")
+    sta_indices = np.random.randint(0, length - context_length, size=batch_size)
+    sequences = [dataset_encodedet[i:i + context_length] for i in sta_indices]
+    targets = [dataset_encodedet[i + 1:i + context_length + 1] for i in sta_indices]
+    sequences_tensor = torch.tensor(sequences, dtype=torch.int16, device=device)
+    targets_tensor = torch.tensor(targets, dtype=torch.int16, device=device)
+    return sequences_tensor, targets_tensor
