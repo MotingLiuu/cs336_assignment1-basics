@@ -5,7 +5,8 @@ from einops import rearrange, einsum
 from math import sqrt
 from jaxtyping import Float, Int
 from torch import Tensor
-from typing import Optional
+from typing import Optional, IO, BinaryIO
+from os import PathLike
 from collections.abc import Iterable, Callable
 import numpy as np
 import numpy.typing as npt
@@ -405,3 +406,28 @@ def data_loading(
     sequences_tensor = torch.tensor(sequences, dtype=torch.int16, device=device)
     targets_tensor = torch.tensor(targets, dtype=torch.int16, device=device)
     return sequences_tensor, targets_tensor
+
+
+def save_checkpoint(
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    iteration: int,
+    out: str | PathLike | BinaryIO | IO[bytes]
+):
+    checkpoint = {
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "iteration": iteration,
+        }
+    torch.save(checkpoint, out)
+    
+    
+def load_checkpoint(
+    src: str | PathLike | BinaryIO | IO[bytes],
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+):
+    checkpoint = torch.load(src, map_location="cpu")
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    return checkpoint.get("iteration", 0)
