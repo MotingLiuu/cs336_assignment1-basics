@@ -481,7 +481,7 @@ def run_get_batch(
         language modeling labels.
     """
     return model.data_loading(
-        dataset_encodedet=dataset,
+        dataset_encoded=dataset,
         batch_size=batch_size,
         context_length=context_length,
         device=device,
@@ -517,7 +517,6 @@ def run_cross_entropy(inputs: Float[Tensor, " batch_size vocab_size"], targets: 
     Returns:
         Float[Tensor, ""]: The average cross-entropy loss across examples.
     """
-    targets = rearrange(targets, " (batch_size c) -> batch_size c", c=1)
     return model.cross_entropy_loss(inputs, targets)
 
 
