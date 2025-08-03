@@ -22,7 +22,14 @@ logging.basicConfig(
 )
 
 class Linear(nn.Module):
-    def __init__(self, in_features: int, out_features: int, bias: bool = True, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    def __init__(
+        self, 
+        in_features: int, 
+        out_features: int, 
+        bias: bool = True, 
+        device: torch.device | None = None, 
+        dtype: torch.dtype | None = None
+    ):
         super().__init__()
         self.device = device
         self.dtype = dtype
@@ -47,7 +54,13 @@ class Linear(nn.Module):
     
     
 class Embedding(nn.Module):
-    def __init__(self, num_embeddings: int, embedding_dim: int, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    def __init__(
+        self, 
+        num_embeddings: int, 
+        embedding_dim: int, 
+        device: torch.device | None = None, 
+        dtype: torch.dtype | None = None
+    ):
         super().__init__()
         self.device = device
         self.dtype = dtype
@@ -85,7 +98,14 @@ class RMSNorm(nn.Module):
     
 
 class FeedForward(nn.Module):
-    def __init__(self, in_features: int, out_features: int, inner_features: int, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    def __init__(
+        self, 
+        in_features: int, 
+        out_features: int, 
+        inner_features: int, 
+        device: torch.device | None = None, 
+        dtype: torch.dtype | None = None
+    ):
         super().__init__()
         self.device = device
         self.dtye = dtype
@@ -106,7 +126,15 @@ class FeedForward(nn.Module):
     
     
 class RotaryPositionalEmbedding(nn.Module):
-    def __init__(self, theta: float, d_k: int, max_seq_len: int, buffer = True ,device: torch.device | None = None, dtype: torch.dtype | None = None):
+    def __init__(
+        self, 
+        theta: float, 
+        d_k: int, 
+        max_seq_len: int, 
+        buffer = True,
+        device: torch.device | None = None, 
+        dtype: torch.dtype | None = None
+    ):
         super().__init__()
         self.theta = theta
         self.d_k = d_k
@@ -147,7 +175,13 @@ class RotaryPositionalEmbedding(nn.Module):
     
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    def __init__(
+        self, 
+        d_model: int, 
+        num_heads: int, 
+        device: torch.device | None = None, 
+        dtype: torch.dtype | None = None
+    ):
         super().__init__()
         self.device = device
         self.dtype = dtype
@@ -181,7 +215,14 @@ class MultiHeadAttention(nn.Module):
     
     
 class TransformerBlock(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, d_ff: int, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    def __init__(
+        self, 
+        d_model: int, 
+        num_heads: int, 
+        d_ff: int, 
+        device: torch.device | None = None, 
+        dtype: torch.dtype | None = None
+    ):
         super().__init__()
         self.device = device
         self.dtype = dtype
@@ -256,9 +297,51 @@ class Transformer(nn.Module):
         x = self.lm_head(x)
         return x
     
-    
-    
-    
+    def generate(
+        self,
+        input_ids: Int[Tensor, "... seq_len"],
+        max_length: int,
+        temperature: float = 1.0,
+        top_p: float = 0.9,
+        end_token_id: int = 0,
+        pad_token_id: int = 0,
+    ):
+        if input_ids.shape[-1] >= max_length:
+            raise ValueError("Input sequence is longer than max_length.")
+        self.eval()
+        device = self.parameters().__next__().device
+        input_ids = input_ids.to(device)
+        current_length = input_ids.shape[-1]
+        unfinished_sequences_shape = list(input_ids.shape)
+        unfinished_sequences_shape[-1] = 1
+        unfinished_sequences = torch.ones(unfinished_sequences_shape, device=device, dtype=torch.long)
+        
+        while current_length < max_length and unfinished_sequences.any():
+            logits = self(input_ids)[..., -1, :]
+            logits = logits / temperature
+            probs = softmax(logits)
+            if top_p < 1.0:
+                sorted_probs, sorted_indices = torch.sort(probs, descending=True)
+                cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+                pad_tensor_shape = list(cumulative_probs.shape)
+                pad_tensor_shape[-1] = 1
+                pad_tensor = torch.zeros(pad_tensor_shape, device=device, dtype=cumulative_probs.dtype)
+                cumulative_probs = torch.cat((pad_tensor, cumulative_probs[..., :-1]), dim=-1)
+                mask_to_keep = cumulative_probs < top_p
+                probs_to_keep = sorted_probs.mask_fill_(mask_to_keep == False, float(0))
+                probs_to_keep /= probs_to_keep.sum(dim=-1, keepdim=True)
+                temp_index = torch.multinomial(probs_to_keep, num_samples=1)
+                next_token_id = torch.gather(sorted_indices, dim=-1, index=temp_index)
+            
+            tokens_to_append = next_token_id * unfinished_sequences + pad_token_id * (1 - unfinished_sequences)
+            input_ids = torch.cat((input_ids, tokens_to_append), dim=-1)
+            new_token_is_end = (next_token_id == end_token_id)
+            unfinished_sequences = unfinished_sequences & ~new_token_is_end
+            current_length += 1
+            
+        return input_ids
+            
+            
 class SGD(torch.optim.Optimizer):
     def __init__(self, params: Iterable[nn.Parameter], lr: float=1e-3):
         if lr < 0:
