@@ -16,7 +16,7 @@ import math
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
-    level=logging.DEBUG, 
+    level=logging.INFO, 
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -271,6 +271,7 @@ class Transformer(nn.Module):
         self.num_layers = num_layers
         self.vocab_size = vocab_size
         self.max_seq_len = max_seq_len
+        self.theta = theta
         self.token_embeddings = Embedding(vocab_size, d_model, device=device, dtype=dtype)
         self.layers = nn.ModuleList([
             TransformerBlock(d_model, num_heads, d_ff, device=device, dtype=dtype) 
@@ -386,6 +387,7 @@ class AdamW(torch.optim.Optimizer):
         
     def step(self, closure: Optional[Callable] = None):
         loss = None if closure is None else closure()
+        
         for group in self.param_groups:
             lr = group["lr"]
             betas = group["betas"]
@@ -411,7 +413,49 @@ class AdamW(torch.optim.Optimizer):
                 state["v"] = v
                 state["t"] = t + 1
         return loss
+    
+class LRScheduler:
+    def __init__(self, optimizer: torch.optim.Optimizer):
+        self.optimizer = optimizer
+        self.last_lr = self._get_initial_lr()
+    
+    def _get_initial_lr(self) -> list[float]:
+        return [group["lr"] for group in self.optimizer.param_groups]
+    
+    def get_lr(self, current_step: int) -> list[float]:
+        raise NotImplementedError("This method should be implemented by subclasses.")
+    
+    def step(self, current_step: int):
+        new_lrs = self.get_lr(current_step)
+        for param_group, new_lr in zip(self.optimizer.param_groups, new_lrs):
+            param_group["lr"] = new_lr
+        self.last_lr = new_lrs
         
+class CosineLRScheduler(LRScheduler):
+    def __init__(
+        self,
+        optimizer: torch.optim.Optimizer,
+        max_lr: float,
+        min_lr: float,
+        warmup_steps: int,
+        cosine_annealing_steps: int
+    ):
+        self.max_lr = max_lr
+        self.min_lr = min_lr
+        self.warmup_steps = warmup_steps
+        self.cosine_annealing_steps = cosine_annealing_steps
+        super().__init__(optimizer)
+        
+    def get_lr(self, current_step: int) -> list[float]:
+        lr = cosine_schedule(
+            current_step=current_step,
+            max_lr=self.max_lr,
+            min_lr=self.min_lr,
+            warmup_steps=self.warmup_steps,
+            cosine_annealing_steps=self.cosine_annealing_steps
+        )
+        return [lr] * len(self.optimizer.param_groups)
+
 
 def scaled_dot_product_attention(
     Q: Float[Tensor, "... seq_len d_k"],
@@ -494,8 +538,10 @@ def data_loading(
     start_indices = np.random.randint(0, length - context_length, size=batch_size)
     sequences = [dataset_encoded[i:i + context_length] for i in start_indices]
     targets = [dataset_encoded[i + 1:i + context_length + 1] for i in start_indices]
-    sequences_tensor = torch.tensor(sequences, dtype=torch.int16, device=device)
-    targets_tensor = torch.tensor(targets, dtype=torch.int16, device=device)
+    sequences = np.array(sequences, dtype=np.uint16)
+    targets = np.array(targets, dtype=np.uint16)
+    sequences_tensor = torch.tensor(sequences, dtype=torch.long, device=device)
+    targets_tensor = torch.tensor(targets, dtype=torch.long, device=device)
     return sequences_tensor, targets_tensor
 
 def data_loading_all(
