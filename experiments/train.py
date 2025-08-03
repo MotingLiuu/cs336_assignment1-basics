@@ -27,6 +27,7 @@ logging.basicConfig(
     level=logging.DEBUG, 
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
+    filename=current_dir / f"train_model_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log",
 )
 
 
@@ -38,6 +39,7 @@ def get_args():
     parser.add_argument("--checkpoint_save_step", type=int, default=1000, help="Number of steps between saving checkpoints.")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training.")
     parser.add_argument("--num_batches", type=int, default=1000, help="Number of batches to train on.")
+    parser.add_argument("--valid_batch_size", type=int, default=32, help="Batch size for validation.")
     parser.add_argument("--checkpoint_path", type=str, default=None , help="Path to save the checkpoint.")
     parser.add_argument("--checkpoint_folder", type=str, default="./checkpoints", help="Path to save the model and optimizer.")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device to run the model on.")
@@ -74,6 +76,7 @@ def train(
     valid_data: str | PathLike | BinaryIO | IO[bytes],
     num_batches: int = 1,
     batch_size: int = 1,
+    valid_batch_size: int = 1,
     log_step: int = 100,
     checkpoint_save_step: int = 1000,
     checkpoint_folder: str = "./checkpoints",
@@ -92,8 +95,8 @@ def train(
             "model_parameters": {
                 "d_model": model.d_model,
                 "d_ff": model.d_ff,
-                "n_layers": model.n_layers,
-                "n_heads": model.n_heads,
+                "n_layers": model.num_layers,
+                "n_heads": model.num_heads,
                 "vocab_size": model.vocab_size,
                 "max_seq_len": model.max_seq_len,
                 "theta": model.theta
@@ -107,6 +110,8 @@ def train(
             }
         }
         )
+    train_data = current_dir / train_data
+    valid_data = current_dir / valid_data
     mmap_train_data = np.load(train_data, mmap_mode="r")
     mmap_valid_data = np.load(valid_data, mmap_mode="r")
     model.to(device)
@@ -132,7 +137,7 @@ def train(
             with torch.no_grad():
                 valid_batch_tensor, valid_target_tensor = model.data_loading(
                     dataset_encoded=mmap_valid_data,
-                    batch_size=batch_size,
+                    batch_size=valid_batch_size,
                     context_length=model.max_seq_len,
                     device=device,
                 )
@@ -197,6 +202,7 @@ if __name__ == "__main__":
         valid_data=args.valid_data,
         num_batches=args.num_batches,
         batch_size=args.batch_size,
+        valid_batch_size=args.valid_batch_size,
         log_step=args.log_step,
         checkpoint_save_step=args.checkpoint_save_step,
         checkpoint_folder=args.checkpoint_folder,
