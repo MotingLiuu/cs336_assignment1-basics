@@ -256,6 +256,9 @@ class Transformer(nn.Module):
         x = self.lm_head(x)
         return x
     
+    
+    
+    
 class SGD(torch.optim.Optimizer):
     def __init__(self, params: Iterable[nn.Parameter], lr: float=1e-3):
         if lr < 0:
@@ -277,6 +280,7 @@ class SGD(torch.optim.Optimizer):
                 p.data -= lr / math.sqrt(t + 1) * grad
                 state["t"] = t + 1
         return loss
+    
     
 class AdamW(torch.optim.Optimizer):
     def __init__(
@@ -350,10 +354,12 @@ def softmax(x: Float[Tensor, "..."], dim: int = -1) -> Float[Tensor, "..."]:
     sum_exp_x = torch.sum(exp_x, dim=dim, keepdim=True)
     return exp_x / sum_exp_x
 
+
 def cross_entropy_loss(
     logits: Float[Tensor, "... vocab_size"],
-    targets: Float[Tensor, "... 1"],
+    targets: Float[Tensor, "..."],
 ) -> Float[Tensor, "..."]:
+    targets = targets.unsqueeze(-1) 
     max_value, _ = torch.max(logits, dim=-1, keepdim=True)
     logits = logits - max_value
     exp_logits = torch.exp(logits)
@@ -361,6 +367,7 @@ def cross_entropy_loss(
     log_sum_exp_logits = torch.log(sum_exp_logits)
     loss = - logits.gather(dim=-1, index=targets) + log_sum_exp_logits
     return loss.mean()
+
     
 def cosine_schedule(
     current_step: int,
@@ -375,6 +382,7 @@ def cosine_schedule(
         return min_lr + 0.5 * (max_lr - min_lr) * (1 + math.cos(math.pi * (current_step - warmup_steps) / (cosine_annealing_steps - warmup_steps)))
     else:
         return min_lr
+    
     
 def gradient_clipping(
     max_norm: float,
@@ -392,17 +400,31 @@ def gradient_clipping(
  
 
 def data_loading(
-    dataset_encodedet: npt.NDArray,
+    dataset_encoded: npt.NDArray[np.uint16],
     batch_size: int,
     context_length: int,
     device: str = "cpu",
 ):
-    length = len(dataset_encodedet)
+    length = len(dataset_encoded)
     if length < context_length:
         raise ValueError("The length of the data is less than the context length.")
-    sta_indices = np.random.randint(0, length - context_length, size=batch_size)
-    sequences = [dataset_encodedet[i:i + context_length] for i in sta_indices]
-    targets = [dataset_encodedet[i + 1:i + context_length + 1] for i in sta_indices]
+    start_indices = np.random.randint(0, length - context_length, size=batch_size)
+    sequences = [dataset_encoded[i:i + context_length] for i in start_indices]
+    targets = [dataset_encoded[i + 1:i + context_length + 1] for i in start_indices]
+    sequences_tensor = torch.tensor(sequences, dtype=torch.int16, device=device)
+    targets_tensor = torch.tensor(targets, dtype=torch.int16, device=device)
+    return sequences_tensor, targets_tensor
+
+def data_loading_all(
+    dataset_encoded: npt.NDArray[np.uint16],
+    context_length: int,
+    device: str = "cpu",
+):
+    length = len(dataset_encoded)
+    if length < context_length:
+        raise ValueError("The length of the data is less than the context length.")
+    sequences = [dataset_encoded[i:i + context_length] for i in range(length - context_length)]
+    targets = [dataset_encoded[i + 1:i + context_length + 1] for i in range(length - context_length)]
     sequences_tensor = torch.tensor(sequences, dtype=torch.int16, device=device)
     targets_tensor = torch.tensor(targets, dtype=torch.int16, device=device)
     return sequences_tensor, targets_tensor
@@ -431,3 +453,4 @@ def load_checkpoint(
     model.load_state_dict(checkpoint["model_state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     return checkpoint.get("iteration", 0)
+
