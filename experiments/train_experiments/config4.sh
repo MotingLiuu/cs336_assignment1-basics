@@ -1,12 +1,12 @@
-export CUDA_VISIBLE_DEVICES=1
-RUN_NAME="train_experiment_config2_$(date +%Y-%m-%d_%H-%M-%S)"
+export CUDA_VISIBLE_DEVICES=3
+RUN_NAME="train_experiment_config4_$(date +%Y-%m-%d_%H-%M-%S)"
 
 LOG_STEP=10
 CHECKPOINT_SAVE_STEP=500
 BATCH_SIZE=256
 NUM_BATCHES=5000
 CHECKPOINT_PATH="" 
-CHECKPOINT_FOLDER="./checkpoints2"
+CHECKPOINT_FOLDER="./checkpoints4"
 DEVICE="cuda"
 
 TRAIN_DATA="../tiny_train_tokens.npy"
@@ -30,7 +30,7 @@ NUM_ITERS=1000
 
 LR_SCHEDULER="cosine"
 WARMUP_STEPS=200
-MAX_LR=1e-3
+MAX_LR=1e-2
 MIN_LR=0.0
 COSINE_ANNEALING_STEPS=5000
 
