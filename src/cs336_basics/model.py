@@ -300,7 +300,7 @@ class Transformer(nn.Module):
     
     def generate(
         self,
-        input_ids: Int[Tensor, "... seq_len"],
+        input_ids: Int[Tensor, "batch_size seq_len"],
         max_length: int,
         temperature: float = 1.0,
         top_p: float = 0.9,
@@ -312,16 +312,15 @@ class Transformer(nn.Module):
         self.eval()
         device = self.parameters().__next__().device
         input_ids = input_ids.to(device)
-        current_length = input_ids.shape[-1]
-        unfinished_sequences_shape = list(input_ids.shape)
-        unfinished_sequences_shape[-1] = 1
-        unfinished_sequences = torch.ones(unfinished_sequences_shape, device=device, dtype=torch.long)
+        current_length, batch_size = input_ids.shape[-1], input_ids.shape[-2]
+        unfinished_sequences = torch.ones(batch_size, device=device, dtype=torch.long)
         
         while current_length < max_length and unfinished_sequences.any():
             logits = self(input_ids)[..., -1, :]
             logits = logits / temperature
             probs = softmax(logits)
-            if top_p < 1.0:
+            assert top_p > 0.0 and top_p <= 1.0, f"top_p should be in (0, 1], but got {top_p}"
+            if top_p <= 1.0:
                 sorted_probs, sorted_indices = torch.sort(probs, descending=True)
                 cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
                 pad_tensor_shape = list(cumulative_probs.shape)
@@ -329,14 +328,14 @@ class Transformer(nn.Module):
                 pad_tensor = torch.zeros(pad_tensor_shape, device=device, dtype=cumulative_probs.dtype)
                 cumulative_probs = torch.cat((pad_tensor, cumulative_probs[..., :-1]), dim=-1)
                 mask_to_keep = cumulative_probs < top_p
-                probs_to_keep = sorted_probs.mask_fill_(mask_to_keep == False, float(0))
+                probs_to_keep = sorted_probs.masked_fill(mask_to_keep == False, float(0))
                 probs_to_keep /= probs_to_keep.sum(dim=-1, keepdim=True)
                 temp_index = torch.multinomial(probs_to_keep, num_samples=1)
                 next_token_id = torch.gather(sorted_indices, dim=-1, index=temp_index)
-            
+
             tokens_to_append = next_token_id * unfinished_sequences + pad_token_id * (1 - unfinished_sequences)
             input_ids = torch.cat((input_ids, tokens_to_append), dim=-1)
-            new_token_is_end = (next_token_id == end_token_id)
+            new_token_is_end = (next_token_id == end_token_id).squeeze(0)
             unfinished_sequences = unfinished_sequences & ~new_token_is_end
             current_length += 1
             
@@ -576,10 +575,11 @@ def save_checkpoint(
 def load_checkpoint(
     src: str | PathLike | BinaryIO | IO[bytes],
     model: nn.Module,
-    optimizer: torch.optim.Optimizer,
+    optimizer: torch.optim.Optimizer | None = None,
 ):
     checkpoint = torch.load(src, map_location="cpu")
     model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    if optimizer is not None:
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     return checkpoint.get("iteration", 0)
 
