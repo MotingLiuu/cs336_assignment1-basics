@@ -1,0 +1,81 @@
+program: train.py 
+
+method: grid
+
+metric:
+  name: valid_loss
+  goal: minimize
+
+parameters:
+
+  max_lr:
+    values: [0.001]
+  
+  warmup_steps:
+    values: [50, 100, 150, 200, 300]
+
+  log_step:
+    value: 10
+  checkpoint_save_step:
+    value: 100
+  batch_size:
+    value: 256
+  num_batches:
+    value: 100
+  checkpoint_path:
+    value: "" 
+  checkpoint_folder:
+    value: "./checkpoints"
+  device:
+    value: "cuda"
+  
+  # Data arguments
+  train_data:
+    value: "../tiny_train_tokens.npy"
+  valid_data:
+    value: "../tiny_valid_tokens.npy"
+
+  # Model arguments
+  d_model:
+    value: 512
+  d_ff:
+    value: 1344
+  n_layers:
+    value: 4
+  n_heads:
+    value: 16
+  vocab_size:
+    value: 10000
+  max_seq_len:
+    value: 256
+  theta:
+    value: 10000.0
+
+  # Optimizer arguments
+  lr: 
+    value: 0.001
+  weight_decay:
+    value: 0.01
+  beta1:
+    value: 0.9
+  beta2:
+    value: 0.999
+  eps:
+    value: 1e-8
+  optimizer_type:
+    value: "adamw"
+
+  # Scheduler arguments
+  lr_scheduler:
+    value: "cosine"
+  min_lr:
+    value: 0.0
+  cosine_annealing_steps:
+    value: 5000
+
+
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - ${args}

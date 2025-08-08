@@ -9,7 +9,7 @@ metric:
 parameters:
 
   max_lr:
-    values: [0.0001, 0.0005, 0.001, 0.005, 0.01]
+    values: [0.0005]
   
   warmup_steps:
     values: [50, 100, 150, 200, 300]
@@ -21,7 +21,7 @@ parameters:
   batch_size:
     value: 256
   num_batches:
-    value: 5000
+    value: 100
   checkpoint_path:
     value: "" 
   checkpoint_folder:
