@@ -34,7 +34,8 @@ class BPETokenizer:
     def __init__(self, vocab_size: int, special_tokens: list[str] | None = None):
         self.vocab_size = vocab_size
         self.special_tokens = special_tokens if special_tokens else []
-        self.special_tokens.append("<|endoftext|>")
+        if "<|endoftext|>" not in self.special_tokens:
+            self.special_tokens.append("<|endoftext|>")
         self.vocab = {
             **{idx: special_token.encode('utf-8') for idx, special_token in enumerate(self.special_tokens)},
             **{num + len(self.special_tokens): bytes([num]) for num in range(256)}
@@ -238,6 +239,7 @@ class BPETokenizer:
         '''
         if not special_tokens:
             special_tokens = [r'<|endoftext|>']
+
         token_counts = Counter()
         chunk = file.decode('utf-8', errors='ignore')
         chunks = re.split('|'.join(map(re.escape, special_tokens)), chunk)
