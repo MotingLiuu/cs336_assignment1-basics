@@ -218,8 +218,6 @@ class BPETokenizer:
         '''
         pretokenizes a file in parallel and returns token frequencies
         '''
-        if not special_tokens:
-            special_tokens = [r'<|endoftext|>']
         token_counts = Counter()
         with open(input_path, 'rb') as f:
             boundaries = find_chunk_boundaries(
@@ -254,8 +252,6 @@ class BPETokenizer:
         '''
         called by subprocesses in pretokenize_parallel, returns token frequencies
         '''
-        if not special_tokens:
-            special_tokens = [r'<|endoftext|>']
         with open(input_path, 'rb') as f:
             f.seek(sta)
             chunk = f.read(end - sta)
