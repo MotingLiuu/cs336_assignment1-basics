@@ -15,7 +15,7 @@ logging.basicConfig(
 )
 
 DATA_PATH = str((Path(__file__).parent / '../../data/TinyStoriesV2-GPT4-train.txt').resolve())
-bpe_TinyStories = BPETokenizer(10000, [r'<|endoftext|>'])
+bpe_TinyStories = BPETokenizer(10000)
 start = time.time()
 bpe_TinyStories.train(DATA_PATH, parallel=True)
 end = time.time()
