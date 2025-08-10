@@ -166,7 +166,7 @@ class RotaryPositionalEmbedding(nn.Module):
             cos = torch.cos(theta_cached)
             sin = torch.sin(theta_cached)
         x_reshaped = rearrange(x, "... (d2 c) -> ... d2 c", c=2)
-        logging.debug(f"x_reshaped shape: {x_reshaped.shape}, cos shape: {cos.shape}, sin shape: {sin.shape}")
+        logger.debug(f"x_reshaped shape: {x_reshaped.shape}, cos shape: {cos.shape}, sin shape: {sin.shape}")
         x_0, x_1 = x_reshaped[..., 0], x_reshaped[..., 1]
         x_0_rotated = x_0 * cos - x_1 * sin
         x_1_rotated = x_0 * sin + x_1 * cos
@@ -205,7 +205,7 @@ class MultiHeadAttention(nn.Module):
         Q = rearrange(self.q_proj(x), "... seq_len (num_heads d_k) -> ... num_heads seq_len d_k", num_heads=self.num_heads)
         K = rearrange(self.k_proj(x), "... seq_len (num_heads d_k) -> ... num_heads seq_len d_k", num_heads=self.num_heads)
         V = rearrange(self.v_proj(x), "... seq_len (num_heads d_v) -> ... num_heads seq_len d_v", num_heads=self.num_heads)
-        logging.debug(f"Q shape: {Q.shape}, K shape: {K.shape}, V shape: {V.shape}")
+        logger.debug(f"Q shape: {Q.shape}, K shape: {K.shape}, V shape: {V.shape}")
         if isinstance(ROPE, RotaryPositionalEmbedding):
             Q = ROPE(Q)
             K = ROPE(K)

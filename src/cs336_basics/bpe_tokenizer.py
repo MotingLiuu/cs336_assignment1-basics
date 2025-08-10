@@ -46,6 +46,7 @@ class BPETokenizer:
         self.prog = re.compile(self.PAT)
         self.special_tokens_rearranged = sorted(self.special_tokens, key = lambda x: -len(x))
         self.token2id_buffer = {}
+        logger.info(f"Vocab initialized: {self.vocab}, special_tokens: {self.special_tokens}, vocab_size: {self.vocab_size}\n")
     
     def train(self, input_path: str, parallel: bool = True):
         logger.info(f"Started Pretokenization: {input_path} (parallel={parallel}).\n")
@@ -270,6 +271,7 @@ class BPETokenizer:
             tokens.append(match.group())
             sta = match.end()
         tokens.extend(self.prog.findall(text[sta:]))
+        logger.debug(f"Tokens after pretokenization: {tokens}")
         return self._encode_tokens(tokens)
     
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
@@ -293,9 +295,12 @@ class BPETokenizer:
         Encode a list of tokens into a sequence of token IDs
         """
         tokens = [token.encode('utf-8') for token in tokens]
+        logger.debug(f"Tokens after encoding: {tokens}")
         token_ids = []
         for token in tokens:
+            logger.debug(f"Encoding token: {token}")
             token_ids.extend(self.token_2_ids(token))
+        logger.debug(f"Token IDs after encoding: {token_ids}")
         return token_ids
             
     
@@ -303,7 +308,7 @@ class BPETokenizer:
         """
         Convert a token(bytes) to a list of token IDs.
         """
-        if self.token2id.get(token):
+        if self.token2id.get(token, -1) != -1:
             return [self.token2id[token]]
         elif self.token2id_buffer.get(token):
             return self.token2id_buffer[token]
