@@ -93,7 +93,7 @@ def train(
     device: str = "cpu",
 ):
     wandb.init(
-        project="cs336-assignment1-tiny",
+        project="cs336-assignment1-owt",
         name=run_name,
         config={
             "num_batches": num_batches,

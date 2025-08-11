@@ -7,7 +7,7 @@ import logging
 import os
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -46,22 +46,21 @@ tiny_model = mt_model.Transformer(
 )
 tiny_model.to(device)
 mt_model.load_checkpoint(
-    src="checkpoints/checkpoint_iter_5000.pth",
+    src="checkpoints1/checkpoint_iter_5000.pth",
     model=tiny_model,
     optimizer=None,
 )
 
-prompt = "I hate Mondays."
-prompt_ids = tiny_tokenizer.encode(prompt)
-prompt_tensor = torch.tensor(prompt_ids, dtype=torch.long).unsqueeze(0).to(device)
+prompts = ["I hate Mondays.", "She is my favorite girl during my high school, ", "I love this song, "]
+prompts_ids = tiny_tokenizer.batch_encode(prompts)
+prompt_tensor = torch.tensor(prompts_ids, dtype=torch.long).to(device)
 generated_ids = tiny_model.generate(
     input_ids=prompt_tensor,
     max_length=256,
     temperature=1.0,
     top_p=0.9,
 )
-print(f"Prompt: {prompt}")
-print(f"Prompt IDs: {prompt_ids}")
-print(f"Generated IDs: {generated_ids.tolist()}")
-generated_text = tiny_tokenizer.decode(generated_ids[0].tolist())
-print(f"Generated text: {generated_text}")
+for i, prompt in enumerate(prompts):
+    generated_text = tiny_tokenizer.decode(generated_ids[i].tolist())
+    print(f"Prompt: {prompt}")
+    print(f"Generated text: {generated_text}")
