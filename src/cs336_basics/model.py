@@ -161,7 +161,7 @@ class RotaryPositionalEmbedding(nn.Module):
             cos = torch.cos(theta_cached)
             sin = torch.sin(theta_cached)
         x_reshaped = rearrange(x, "... (d2 c) -> ... d2 c", c=2)
-        logger.debug(f"x_reshaped shape: {x_reshaped.shape}, cos shape: {cos.shape}, sin shape: {sin.shape}")
+        # logger.debug(f"x_reshaped shape: {x_reshaped.shape}, cos shape: {cos.shape}, sin shape: {sin.shape}")
         x_0, x_1 = x_reshaped[..., 0], x_reshaped[..., 1]
         x_0_rotated = x_0 * cos - x_1 * sin
         x_1_rotated = x_0 * sin + x_1 * cos
@@ -309,7 +309,7 @@ class Transformer(nn.Module):
         input_ids = input_ids.to(device)
         current_length, batch_size = input_ids.shape[-1], input_ids.shape[-2]
         unfinished_sequences = torch.ones(batch_size, device=device, dtype=torch.long)
-        
+
         while current_length < max_length and unfinished_sequences.any():
             logits = self(input_ids)[..., -1, :]
             logits = logits / temperature
@@ -328,9 +328,10 @@ class Transformer(nn.Module):
                 temp_index = torch.multinomial(probs_to_keep, num_samples=1)
                 next_token_id = torch.gather(sorted_indices, dim=-1, index=temp_index)
 
-            tokens_to_append = next_token_id * unfinished_sequences + pad_token_id * (1 - unfinished_sequences)
+            tokens_to_append = next_token_id * rearrange(unfinished_sequences, "batch_size -> batch_size 1") + pad_token_id * (1 - rearrange(unfinished_sequences, "batch_size -> batch_size 1"))
             input_ids = torch.cat((input_ids, tokens_to_append), dim=-1)
-            new_token_is_end = (next_token_id == end_token_id).squeeze(0)
+            new_token_is_end = (next_token_id == end_token_id)
+            new_token_is_end = rearrange(new_token_is_end, "batch_size 1 -> batch_size")
             unfinished_sequences = unfinished_sequences & ~new_token_is_end
             current_length += 1
             
